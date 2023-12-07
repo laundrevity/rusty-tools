@@ -40,7 +40,10 @@ impl ToolRegistry {
         if let Some(tool) = self.tools.get(tool_name) {
             tool.execute(args).await
         } else {
-            Err(AppError::CommandError(format!("Tool `{}` not found", tool_name)))
+            Err(AppError::CommandError(format!(
+                "Tool `{}` not found",
+                tool_name
+            )))
         }
     }
 }

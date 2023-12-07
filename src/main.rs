@@ -1,14 +1,14 @@
 mod assistant;
-mod types;
-mod utils;
 mod tool_registry;
 mod tools;
 mod traits;
+mod types;
+mod utils;
 
 use crate::types::AppError;
 
 use assistant::Assistant;
-use clap::{Arg, Command, ArgMatches};
+use clap::{Arg, ArgMatches, Command};
 use reqwest::Client;
 use simplelog::*;
 use std::env;
@@ -27,7 +27,13 @@ async fn main() -> Result<(), AppError> {
     let api_key = env::var("OPENAI_API_KEY")
         .map_err(|_| AppError::MissingEnvironmentVariable("OPENAI_API_KEY".to_string()))?;
 
-    let mut assistant = Assistant::new(Client::new(), api_key, model, initial_prompt, matches.is_present("state"));
+    let mut assistant = Assistant::new(
+        Client::new(),
+        api_key,
+        model,
+        initial_prompt,
+        matches.is_present("state"),
+    );
 
     assistant.run().await?;
 
@@ -36,43 +42,41 @@ async fn main() -> Result<(), AppError> {
 
 fn parse_command_line_arguments() -> Result<ArgMatches, AppError> {
     let matches = Command::new("Assistant")
-    .version("1.0.0")
-    .author("Conor Mahany <conor@mahany.io>")
-    .about("Console interface for AI-powered assistant")
-    .arg(
-        Arg::new("initial_prompt")
-            .help("Sets the initial prompt for the assistant")
-            .required(true)
-            .index(1),
-    )
-    .arg(
-        Arg::new("model")
-            .short('m')
-            .long("model")
-            .help("Sets the model to use with the OpenAI API")
-            .takes_value(true)
-            .default_value("gpt-4-1106-preview"),
-    )
-    .arg(
-        Arg::new("log-level")
-            .short('l')
-            .takes_value(true)
-            .possible_values(&["INFO", "DEBUG", "TRACE", "WARN", "ERROR"])
-            .default_value("INFO")
-            .help("Sets the log level"),
-    )
-    .arg(
-        Arg::new("state")
-            .short('s')
-            .long("state")
-            .help("Appends the contents of state.txt to the initial system prompt")
-            .takes_value(false)
-    )
-    .get_matches();
+        .version("1.0.0")
+        .author("Conor Mahany <conor@mahany.io>")
+        .about("Console interface for AI-powered assistant")
+        .arg(
+            Arg::new("initial_prompt")
+                .help("Sets the initial prompt for the assistant")
+                .required(true)
+                .index(1),
+        )
+        .arg(
+            Arg::new("model")
+                .short('m')
+                .long("model")
+                .help("Sets the model to use with the OpenAI API")
+                .takes_value(true)
+                .default_value("gpt-4-1106-preview"),
+        )
+        .arg(
+            Arg::new("log-level")
+                .short('l')
+                .takes_value(true)
+                .possible_values(&["INFO", "DEBUG", "TRACE", "WARN", "ERROR"])
+                .default_value("INFO")
+                .help("Sets the log level"),
+        )
+        .arg(
+            Arg::new("state")
+                .short('s')
+                .long("state")
+                .help("Appends the contents of state.txt to the initial system prompt")
+                .takes_value(false),
+        )
+        .get_matches();
 
-   Ok(matches)
-
-    
+    Ok(matches)
 }
 
 // Logging setup function

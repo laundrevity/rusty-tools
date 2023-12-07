@@ -1,4 +1,5 @@
 use crate::tool_registry::ToolRegistry;
+use crate::tools::file_tool::FileTool;
 use crate::tools::shell_tool::ShellTool;
 use crate::tools::snap_tool::SnapTool;
 use crate::types::{AppError, Message, OpenAIResponse};
@@ -23,10 +24,19 @@ pub struct Assistant {
 }
 
 impl Assistant {
-    pub fn new(client: Client, api_key: String, model: &str, initial_prompt: &str, include_state: bool) -> Self {
+    pub fn new(
+        client: Client,
+        api_key: String,
+        model: &str,
+        initial_prompt: &str,
+        include_state: bool,
+    ) -> Self {
         let mut tool_registry = ToolRegistry::new();
+
+        // TODO: Use proc macro to generate this automatically based on contents of tools/
         tool_registry.register(SnapTool);
         tool_registry.register(ShellTool);
+        tool_registry.register(FileTool);
 
         Assistant {
             client,
@@ -60,7 +70,7 @@ impl Assistant {
         ));
 
         loop {
-            // // JSON payload for the request
+            // // JSON payload for the request -- allowing for tool calls
             let payload = json!({
                 "model": self.model,
                 "messages": self.messages,
@@ -79,18 +89,29 @@ impl Assistant {
 
                     // Ask user for approval before executing tool call
                     if request_tool_call_approval(&tool_call).await? {
-                        match self.tool_registry.execute_tool(function_name, arguments).await {
+                        match self
+                            .tool_registry
+                            .execute_tool(function_name, arguments)
+                            .await
+                        {
                             Ok(result) => {
-                                log::info!("Successfully executed tool call: {:?}\n=>\n{}", tool_call, result);
-                                print_colorful(&format!("{}\n=>\n{}\n", function_name, result), Color::Magenta)?;
+                                log::info!(
+                                    "Successfully executed tool call: {:?}\n=>\n{}",
+                                    tool_call,
+                                    result
+                                );
+                                print_colorful(
+                                    &format!("{}\n=>\n{}\n", function_name, result),
+                                    Color::Magenta,
+                                )?;
                                 self.add_message(Message {
                                     role: "tool".to_string(),
                                     content: Some(result),
                                     tool_calls: None,
                                     tool_call_id: Some(tool_call.id.clone()),
-                                    name: Some(function_name.to_string())
+                                    name: Some(function_name.to_string()),
                                 });
-                            },
+                            }
                             Err(e) => {
                                 log::warn!("Failed to execute tool call: {:?} => {}", tool_call, e);
                                 println!("Error executing function `{}`: {}", function_name, e);
@@ -114,17 +135,18 @@ impl Assistant {
                     }
                 }
 
+                // JSON payload not allowing for tool calls
                 let payload = json!({
                     "model": self.model,
                     "messages": self.messages
                 });
-                let response: OpenAIResponse = post_json(&self.client, url, &self.api_key, &payload).await?;
-                
+                let response: OpenAIResponse =
+                    post_json(&self.client, url, &self.api_key, &payload).await?;
+
                 print_assistant_reply(response.choices[0].message.content.as_ref().unwrap())?;
             } else {
                 print_assistant_reply(response.choices[0].message.content.as_ref().unwrap())?;
             }
-
 
             // Handle user input
             print_user_prompt()?;

@@ -1,21 +1,20 @@
 use crate::{traits::Tool, types::AppError};
-use async_trait::async_trait;
 use async_recursion::async_recursion;
-use serde_json::{json, Value as JsonValue, Result as JsonResult};
+use async_trait::async_trait;
 use serde::de::Error as DeError;
-use std::path::Path;
+use serde_json::{json, Result as JsonResult, Value as JsonValue};
 use std::fs;
+use std::path::Path;
 
 pub struct SnapTool;
 
-
 #[async_trait]
 impl Tool for SnapTool {
-    fn name(&self) ->  &'static str {
+    fn name(&self) -> &'static str {
         "shell_tool"
     }
 
-    fn description(&self) ->  &'static str {
+    fn description(&self) -> &'static str {
         "Return the formatted source code of the current project, including Cargo.toml and all .rs files"
     }
 
@@ -51,7 +50,10 @@ async fn create_project_snapshot() -> Result<String, AppError> {
 
 // Helper to read the contents of a directory recursively
 #[async_recursion]
-async fn read_directory_contents<P: AsRef<Path> + Send>(dir_path: P, snapshot: &mut String) -> Result<(), AppError> {
+async fn read_directory_contents<P: AsRef<Path> + Send>(
+    dir_path: P,
+    snapshot: &mut String,
+) -> Result<(), AppError> {
     let dir_path = dir_path.as_ref();
 
     // Iterate over the directory
@@ -62,9 +64,13 @@ async fn read_directory_contents<P: AsRef<Path> + Send>(dir_path: P, snapshot: &
         if path.is_dir() {
             // Recursively call this function for nested directories
             read_directory_contents(&path, snapshot).await?;
-        } else if path.is_file() && path.extension().and_then(std::ffi::OsStr::to_str) == Some("rs") {
+        } else if path.is_file() && path.extension().and_then(std::ffi::OsStr::to_str) == Some("rs")
+        {
             // Add the contents of Rust source files to the snapshot
-            snapshot.push_str(&format!("File: {}\n", path.strip_prefix("src/").unwrap_or(&path).display()));
+            snapshot.push_str(&format!(
+                "File: {}\n",
+                path.strip_prefix("src/").unwrap_or(&path).display()
+            ));
             snapshot.push_str(&read_file_contents(&path).await?);
             snapshot.push_str("\n\n");
         }
@@ -72,7 +78,6 @@ async fn read_directory_contents<P: AsRef<Path> + Send>(dir_path: P, snapshot: &
 
     Ok(())
 }
-
 
 // Helper to read file contents
 async fn read_file_contents<P: AsRef<Path>>(path: P) -> JsonResult<String> {

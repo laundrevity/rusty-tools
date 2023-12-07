@@ -1,11 +1,11 @@
-use serde::de::Error as DeError;
-use serde_json::{json, Value as JsonValue, Result as JsonResult};
-use async_trait::async_trait;
 use crate::traits::Tool;
 use crate::types::AppError;
-use serde_derive::{Serialize, Deserialize};
-use std::process::{Command, Output};
+use async_trait::async_trait;
+use serde::de::Error as DeError;
+use serde_derive::{Deserialize, Serialize};
+use serde_json::{json, Result as JsonResult, Value as JsonValue};
 use std::io;
+use std::process::{Command, Output};
 
 // Import this in main file where needed
 pub struct ShellTool;
@@ -45,7 +45,7 @@ impl Tool for ShellTool {
         } else {
             Err(AppError::CommandError(
                 "commands argument to execute_linux_commands must be a string".to_string(),
-            )) 
+            ))
         }
     }
 }
@@ -92,7 +92,6 @@ fn handle_command_output(output: io::Result<Output>, command: &str) -> JsonResul
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -101,7 +100,7 @@ mod tests {
     async fn text_execute_shell_commands() {
         let commands = vec![ShellCommand {
             command: "echo".to_string(),
-            args: Some(vec!["Hello, world!".to_string()])
+            args: Some(vec!["Hello, world!".to_string()]),
         }];
         let result = execute_linux_commands(commands).await;
         assert!(result.is_ok());
