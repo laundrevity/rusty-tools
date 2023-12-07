@@ -163,3 +163,33 @@ pub fn get_tools_json() -> JsonValue {
             }
         }])
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[tokio::test]
+    async fn test_execute_linux_commands() {
+        let commands = vec![
+            LinuxCommand {
+                command: "echo".to_string(),
+                args: Some(vec!["Hello, world!".to_string()])
+            },
+        ];
+        let result = execute_linux_commands(commands).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "Hello, world!");
+    }
+    
+    #[tokio::test]
+    async fn test_get_snapshot() {
+        // This test assumes that there is a Cargo.toml file and at least one .rs file in the src directory.
+        let result = create_project_snapshot().await;
+        assert!(result.is_ok());
+        let snapshot = result.unwrap();
+        assert!(snapshot.contains("[package]"));
+        assert!(snapshot.contains("name = \"rtool\""));
+        assert!(snapshot.contains("File: src/types.rs")); // Assuming types.rs will exist
+        // Add further assertions based on the specific contents we expect to find in the snapshot
+    }
+}
