@@ -1,9 +1,10 @@
 use crate::tool_function::{ToolFunctionExecutor, get_tool_function_from_name, get_tools_json};
-use crate::types::{Message, OpenAIResponse};
+use crate::utils::{post_json, print_assistant_reply, print_user_prompt};
+use crate::types::{Message, OpenAIResponse, AppError};
 
-use reqwest::{Client, Error};
+use reqwest::Client;
 use serde_json::json;
-use std::io;
+use std::io::{self};
 
 pub struct Assistant {
     client: Client,
@@ -13,27 +14,21 @@ pub struct Assistant {
 }
 
 impl Assistant {
-    pub fn new(client: Client, api_key: String) -> Self {
+    pub fn new(client: Client, api_key: String, model: &str, initial_prompt: &str) -> Self {
         Assistant {
             client,
             api_key,
-            model: "gpt-4-1106-preview".to_string(),
-            messages: Vec::new()
+            model: model.to_string(),
+            messages: vec!(
+                Message::new("system".to_string(), "You are a versatile assistant. You have the ability to call various tools to help the user".to_string()),
+                Message::new("user".to_string(), initial_prompt.to_string())
+            )
         }
     }
 
-    pub async fn run(&mut self) -> Result<(), Error> {
+    pub async fn run(&mut self) -> Result<(), AppError> {
         // Initial setup
         let url = "https://api.openai.com/v1/chat/completions";
-
-        self.add_message(
-            "system".to_string(),
-            "You are a versatile assistant. You have the ability to call various tools to help the user.".to_string(), 
-        );
-        self.add_message(
-            "user".to_string(),
-            "What's the current directory?".to_string(),
-        );
 
         loop {
             // // JSON payload for the request
@@ -43,14 +38,7 @@ impl Assistant {
                 "tools": get_tools_json()
             });
 
-            let response = self.client
-                .post(url)
-                .bearer_auth(&self.api_key)
-                .json(&payload)
-                .send()
-                .await?
-                .json::<OpenAIResponse>()
-                .await?;
+            let response: OpenAIResponse = post_json(&self.client, url, &self.api_key, &payload).await?;
 
             self.messages.push(response.choices[0].message.clone());
 
@@ -85,21 +73,16 @@ impl Assistant {
                         "model": self.model,
                         "messages": self.messages
                     });
-                    let response = self.client
-                        .post(url)
-                        .bearer_auth(&self.api_key)
-                        .json(&payload)
-                        .send()
-                        .await?
-                        .json::<OpenAIResponse>()
-                        .await?;
-                    println!("Assistant: {}", response.choices[0].message.content.clone().unwrap());
+                    let response: OpenAIResponse= post_json(&self.client, url, &self.api_key, &payload).await?;
+                    
+                    print_assistant_reply(response.choices[0].message.content.as_ref().unwrap())?;
                 } else {
-                    println!("Assistant: {}", response.choices[0].message.content.clone().unwrap());
+                    print_assistant_reply(response.choices[0].message.content.as_ref().unwrap())?;
                 }
 
+                // Handle user input
+                print_user_prompt()?;
                 let mut user_input = String::new();
-                println!("User: ");
                 io::stdin().read_line(&mut user_input).unwrap();
                 let user_input = user_input.trim();
 
@@ -114,9 +97,5 @@ impl Assistant {
         }
 
         Ok(())
-    }
-
-    pub fn add_message(&mut self, role: String, content: String) {
-        self.messages.push(Message::new(role, content));
     }
 }

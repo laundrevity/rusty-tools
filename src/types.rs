@@ -1,4 +1,5 @@
 use serde_derive::{Deserialize, Serialize};
+use std::fmt;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct FunctionCall {
@@ -58,5 +59,46 @@ impl Message {
             tool_call_id: None,
             name: None
         }
+    }
+}
+
+#[derive(Debug)]
+pub enum AppError {
+    ReqwestError(reqwest::Error),
+    IOError(std::io::Error),
+    SerdeJsonError(serde_json::Error),
+    MissingEnvironmentVariable(String),
+}
+
+impl fmt::Display for AppError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AppError::ReqwestError(e) => write!(f, "HTTP request failed: {}", e),
+            AppError::IOError(e) => write!(f, "IO error: {}", e),
+            AppError::SerdeJsonError(e) => write!(f, "Serialization/Deserialization error: {}", e),
+            AppError::MissingEnvironmentVariable(e) => write!(f, "Missing environment variable: {}", e),
+        }
+    }
+}
+
+// Implement std::error::Error for our custom type.
+impl std::error::Error for AppError {}
+
+// Implement From traits for converting from error types to our custom AppError type.
+impl From<reqwest::Error> for AppError {
+    fn from(err: reqwest::Error) -> Self {
+        AppError::ReqwestError(err)
+    }
+}
+
+impl From<std::io::Error> for AppError {
+    fn from(err: std::io::Error) -> Self {
+        AppError::IOError(err)
+    }
+}
+
+impl From<serde_json::Error> for AppError {
+    fn from(err: serde_json::Error) -> Self {
+        AppError::SerdeJsonError(err)
     }
 }
