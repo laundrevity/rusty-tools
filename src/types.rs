@@ -57,7 +57,7 @@ impl Message {
             content: Some(content),
             tool_calls: None,
             tool_call_id: None,
-            name: None
+            name: None,
         }
     }
 }
@@ -77,7 +77,9 @@ impl fmt::Display for AppError {
             AppError::ReqwestError(e) => write!(f, "HTTP request failed: {}", e),
             AppError::IOError(e) => write!(f, "IO error: {}", e),
             AppError::SerdeJsonError(e) => write!(f, "Serialization/Deserialization error: {}", e),
-            AppError::MissingEnvironmentVariable(e) => write!(f, "Missing environment variable: {}", e),
+            AppError::MissingEnvironmentVariable(e) => {
+                write!(f, "Missing environment variable: {}", e)
+            }
             AppError::CommandError(e) => write!(f, "Error with command: {}", e),
         }
     }

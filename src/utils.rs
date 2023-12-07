@@ -1,24 +1,23 @@
 use crate::types::{AppError, ToolCall};
 
-use serde::de::DeserializeOwned;
-use reqwest::Client;
-use serde_json::Value;
 use crossterm::{
     style::{Color, ResetColor, SetForegroundColor},
-    ExecutableCommand
+    ExecutableCommand,
 };
+use reqwest::Client;
+use serde::de::DeserializeOwned;
+use serde_json::Value;
 use std::io::{self, Write};
-
 
 // Utility function to send a post request and wait for a JSON response
 pub async fn post_json<T: DeserializeOwned>(
     client: &Client,
     url: &str,
     api_key: &str,
-    payload: &Value
+    payload: &Value,
 ) -> Result<T, AppError> {
     log::debug!("Sending HTTP POST payload {:?} to {}", payload, url);
-    let response =client
+    let response = client
         .post(url)
         .bearer_auth(api_key)
         .json(payload)
@@ -65,8 +64,8 @@ pub async fn request_tool_call_approval(tool_call: &ToolCall) -> Result<bool, Ap
     // Printing information with formatted pretty-printed arguments
     // Let's use a gentle Blue color for the prompt
     print_colorful(
-        &format!("\n{}({}) ? (y/n) ", tool_call.function.name, pretty_args), 
-        Color::Blue
+        &format!("\n{}({}) ? (y/n) ", tool_call.function.name, pretty_args),
+        Color::Blue,
     )?;
 
     // Request user input with a printed prompt
@@ -75,7 +74,9 @@ pub async fn request_tool_call_approval(tool_call: &ToolCall) -> Result<bool, Ap
 
     // Read user input
     let mut approval = String::new();
-    io::stdin().read_line(&mut approval).map_err(AppError::from)?;
+    io::stdin()
+        .read_line(&mut approval)
+        .map_err(AppError::from)?;
     let approval = approval.trim();
 
     // Return true if approved ('y' or 'Y'), false otherwise

@@ -1,14 +1,13 @@
 use async_trait::async_trait;
-use serde_json::{json, Result as JsonResult, Value as JsonValue};
 use serde::de::Error as DeError;
 use serde_derive::{Deserialize, Serialize};
-use std::process::{Command, Output};
-use std::io;
+use serde_json::{json, Result as JsonResult, Value as JsonValue};
 use std::fs;
+use std::io;
 use std::path::Path;
+use std::process::{Command, Output};
 
 use crate::types::AppError;
-
 
 #[async_trait]
 pub trait ToolFunctionExecutor {
@@ -39,12 +38,12 @@ impl ToolFunctionExecutor for ToolFunction {
                     let commands: Vec<LinuxCommand> = serde_json::from_str(&commands_json_string)?;
                     execute_linux_commands(commands).await
                 } else {
-                    Err(AppError::CommandError("commands argument to execute_linux_commands must be a string".to_string()))
+                    Err(AppError::CommandError(
+                        "commands argument to execute_linux_commands must be a string".to_string(),
+                    ))
                 }
-            },
-            ToolFunction::GetSnapshot => {
-                create_project_snapshot().await
             }
+            ToolFunction::GetSnapshot => create_project_snapshot().await,
         }
     }
 }
@@ -83,9 +82,7 @@ async fn create_project_snapshot() -> Result<String, AppError> {
 
     // Read the Cargo.toml file
     snapshot.push_str("File: Cargo.toml\n");
-    snapshot.push_str(
-        &read_file_contents("Cargo.toml").await?
-    );
+    snapshot.push_str(&read_file_contents("Cargo.toml").await?);
     snapshot.push_str("\n\n");
 
     // Read all .rs files in src
@@ -93,15 +90,14 @@ async fn create_project_snapshot() -> Result<String, AppError> {
         let path = entry?.path();
         if path.is_file() && path.extension().and_then(std::ffi::OsStr::to_str) == Some("rs") {
             snapshot.push_str(&format!("File: {}\n", path.display()));
-            snapshot.push_str(
-                &read_file_contents(&path).await?
-            );
+            snapshot.push_str(&read_file_contents(&path).await?);
             snapshot.push_str("\n\n");
         }
     }
 
     // Write snapshot to state.txt
-    fs::write("state.txt", &snapshot).map_err(|e| serde_json::Error::custom(format!("Error writing to file: {}", e)))?;
+    fs::write("state.txt", &snapshot)
+        .map_err(|e| serde_json::Error::custom(format!("Error writing to file: {}", e)))?;
 
     // Return the created snapshot
     Ok(snapshot)
@@ -129,58 +125,57 @@ fn handle_command_output(output: io::Result<Output>, command: &str) -> JsonResul
 
 // Helper to read file contents
 async fn read_file_contents<P: AsRef<Path>>(path: P) -> JsonResult<String> {
-    fs::read_to_string(path).map_err(|e| serde_json::Error::custom(format!("Error reading file: {}", e)))
+    fs::read_to_string(path)
+        .map_err(|e| serde_json::Error::custom(format!("Error reading file: {}", e)))
 }
 
 pub fn get_tools_json() -> JsonValue {
     json!([
-        {
-            "type": "function",
-            "function": {
-                "name": "execute_linux_commands",
-                "description": "Execute a list of Linux commands in the shell and return their concatenated output",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "commands": {
-                            "type": "string",
-                            "description": "The JSON-encoded list of Linux commands to execute. Each command must have a key `command` with a String value, and an optional key `args` with an array of Strings for value. So, for example, we would represent `ls -ltrah` with {'command': 'ls', 'args': ['-ltrah']} (in proper JSON of course)"
-                        }
-                    },
-                    "required": ["commands"]
-                }
+    {
+        "type": "function",
+        "function": {
+            "name": "execute_linux_commands",
+            "description": "Execute a list of Linux commands in the shell and return their concatenated output",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "commands": {
+                        "type": "string",
+                        "description": "The JSON-encoded list of Linux commands to execute. Each command must have a key `command` with a String value, and an optional key `args` with an array of Strings for value. So, for example, we would represent `ls -ltrah` with {'command': 'ls', 'args': ['-ltrah']} (in proper JSON of course)"
+                    }
+                },
+                "required": ["commands"]
             }
-        },
-        {
-            "type": "function",
-            "function": {
-                "name": "get_snapshot",
-                "description": "Return the formatted source code of the current project",
-                "parameters": {
-                    "type": "object",
-                    "properties": {},
-                }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_snapshot",
+            "description": "Return the formatted source code of the current project",
+            "parameters": {
+                "type": "object",
+                "properties": {},
             }
-        }])
+        }
+    }])
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_execute_linux_commands() {
-        let commands = vec![
-            LinuxCommand {
-                command: "echo".to_string(),
-                args: Some(vec!["Hello, world!".to_string()])
-            },
-        ];
+        let commands = vec![LinuxCommand {
+            command: "echo".to_string(),
+            args: Some(vec!["Hello, world!".to_string()]),
+        }];
         let result = execute_linux_commands(commands).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "Hello, world!");
     }
-    
+
     #[tokio::test]
     async fn test_get_snapshot() {
         // This test assumes that there is a Cargo.toml file and at least one .rs file in the src directory.
@@ -190,6 +185,6 @@ mod tests {
         assert!(snapshot.contains("[package]"));
         assert!(snapshot.contains("name = \"rtool\""));
         assert!(snapshot.contains("File: src/types.rs")); // Assuming types.rs will exist
-        // Add further assertions based on the specific contents we expect to find in the snapshot
+                                                          // Add further assertions based on the specific contents we expect to find in the snapshot
     }
 }
