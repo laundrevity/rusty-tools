@@ -5,29 +5,35 @@ use serde_derive::{Deserialize, Serialize};
 use tokio::time::{sleep, Duration};
 use std::process::{Command, Output};
 use std::io;
+use std::fs;
+use std::path::Path;
+
+use crate::types::AppError;
 
 
 #[async_trait]
 pub trait ToolFunctionExecutor {
-    async fn execute(&self, args: &str) -> JsonResult<String>;
+    async fn execute(&self, args: &str) -> Result<String, AppError>;
 }
 
 pub enum ToolFunction {
     GetCurrentWeather,
-    ExecuteLinuxCommands
+    ExecuteLinuxCommands,
+    GetSnapshot,
 }
 
 pub fn get_tool_function_from_name(name: &str) -> Option<ToolFunction> {
     match name {
         "get_current_weather" => Some(ToolFunction::GetCurrentWeather),
         "execute_linux_commands" => Some(ToolFunction::ExecuteLinuxCommands),
+        "get_snapshot" => Some(ToolFunction::GetSnapshot),
         _ => None,
     }
 }
 
 #[async_trait]
 impl ToolFunctionExecutor for ToolFunction {
-    async fn execute(&self, args: &str) -> JsonResult<String> {
+    async fn execute(&self, args: &str) -> Result<String, AppError> {
         match self {
             ToolFunction::GetCurrentWeather => {
                 // Parse arguments string into JSON
@@ -37,7 +43,7 @@ impl ToolFunctionExecutor for ToolFunction {
                 if let Some(location) = args["location"].as_str() {
                     get_current_weather(location.to_string()).await
                 } else {
-                    Err(serde_json::Error::custom("Location argument is missing"))
+                    Err(AppError::CommandError("Missing location argument to get_current_weather function".to_string()))
                 }
             },
             ToolFunction::ExecuteLinuxCommands => {
@@ -47,10 +53,11 @@ impl ToolFunctionExecutor for ToolFunction {
                     let commands: Vec<LinuxCommand> = serde_json::from_str(&commands_json_string)?;
                     execute_linux_commands(commands).await
                 } else {
-                    Err(serde_json::Error::custom(
-                        "Commands argument must be a string",
-                    ))
+                    Err(AppError::CommandError("commands argument to execute_linux_commands must be a string".to_string()))
                 }
+            },
+            ToolFunction::GetSnapshot => {
+                create_project_snapshot().await
             }
         }
     }
@@ -62,14 +69,14 @@ struct LinuxCommand {
     args: Option<Vec<String>>,
 }
 
-async fn get_current_weather(location: String) -> JsonResult<String> {
+async fn get_current_weather(location: String) -> Result<String, AppError> {
     // Simulate API call by sleeping for 1 sec
     sleep(Duration::from_secs(1)).await;
 
     Ok(format!("Decent weather in {}, innit?", location))
 }
 
-async fn execute_linux_commands(commands: Vec<LinuxCommand>) -> JsonResult<String> {
+async fn execute_linux_commands(commands: Vec<LinuxCommand>) -> Result<String, AppError> {
     let mut results = Vec::new();
     for linux_command in commands {
         // Spawn a command using the provided command and args
@@ -91,6 +98,36 @@ async fn execute_linux_commands(commands: Vec<LinuxCommand>) -> JsonResult<Strin
     Ok(results.join("\n"))
 }
 
+// Function to create the snapshot
+async fn create_project_snapshot() -> Result<String, AppError> {
+    let mut snapshot = String::new();
+
+    // Read the Cargo.toml file
+    snapshot.push_str("File: Cargo.toml\n");
+    snapshot.push_str(
+        &read_file_contents("Cargo.toml").await?
+    );
+    snapshot.push_str("\n\n");
+
+    // Read all .rs files in src
+    for entry in fs::read_dir("src")? {
+        let path = entry?.path();
+        if path.is_file() && path.extension().and_then(std::ffi::OsStr::to_str) == Some("rs") {
+            snapshot.push_str(&format!("File: {}\n", path.display()));
+            snapshot.push_str(
+                &read_file_contents(&path).await?
+            );
+            snapshot.push_str("\n\n");
+        }
+    }
+
+    // Write snapshot to state.txt
+    fs::write("state.txt", &snapshot).map_err(|e| serde_json::Error::custom(format!("Error writing to file: {}", e)))?;
+
+    // Return the created snapshot
+    Ok(snapshot)
+}
+
 fn handle_command_output(output: io::Result<Output>, command: &str) -> JsonResult<String> {
     match output {
         Ok(output) if output.status.success() => {
@@ -109,6 +146,11 @@ fn handle_command_output(output: io::Result<Output>, command: &str) -> JsonResul
             command, e
         ))),
     }
+}
+
+// Helper to read file contents
+async fn read_file_contents<P: AsRef<Path>>(path: P) -> JsonResult<String> {
+    fs::read_to_string(path).map_err(|e| serde_json::Error::custom(format!("Error reading file: {}", e)))
 }
 
 pub fn get_tools_json() -> JsonValue {
@@ -144,6 +186,17 @@ pub fn get_tools_json() -> JsonValue {
                         }
                     },
                     "required": ["commands"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_snapshot",
+                "description": "Return the formatted source code of the current project",
+                "parameters": {
+                    "type": "object",
+                    "properties": {},
                 }
             }
         }])

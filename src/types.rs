@@ -68,6 +68,7 @@ pub enum AppError {
     IOError(std::io::Error),
     SerdeJsonError(serde_json::Error),
     MissingEnvironmentVariable(String),
+    CommandError(String),
 }
 
 impl fmt::Display for AppError {
@@ -77,6 +78,7 @@ impl fmt::Display for AppError {
             AppError::IOError(e) => write!(f, "IO error: {}", e),
             AppError::SerdeJsonError(e) => write!(f, "Serialization/Deserialization error: {}", e),
             AppError::MissingEnvironmentVariable(e) => write!(f, "Missing environment variable: {}", e),
+            AppError::CommandError(e) => write!(f, "Error with command: {}", e),
         }
     }
 }
