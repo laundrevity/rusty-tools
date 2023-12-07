@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  myrustapp:
+    # Build from the Dockerfile in the current directory
+    build: .
+    # Map the cargo volume to the host to cache dependencies
+    volumes:
+      - .:/usr/src/myapp
+      - cargo-cache:/root/.cargo/registry
+    # This command overrides the CMD in the Dockerfile and keeps the container running indefinitely
+    command: ["sleep", "infinity"]
+    # Set up the environment variables you need for your Rust app
+    environment:
+      - RUST_BACKTRACE=1
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    # If you have ports you want to expose for a web server, or other network services, configure them here
+    ports:
+      - "4000:4000" # Example port mapping: Host:Container
+
+volumes:
+  # This named volume is used to store the cargo registry cache for faster builds
+  cargo-cache:
