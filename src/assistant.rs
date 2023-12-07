@@ -156,9 +156,18 @@ impl Assistant {
 
             if user_input.eq_ignore_ascii_case("exit") || user_input.eq_ignore_ascii_case("quit") {
                 break;
+            } else if user_input.eq_ignore_ascii_case("list tools") {
+                // If `list tools` then get some more input
+                let tools_listing = self.tool_registry.list_tools();
+                print_colorful(&tools_listing, Color::Green)?;
+                print_user_prompt()?;
+                let mut user_input = String::new();
+                io::stdin().read_line(&mut user_input).unwrap();
+                let user_input = user_input.trim();
+                self.add_message(Message::new("user".to_string(), user_input.to_string()));
+            } else {
+                self.add_message(Message::new("user".to_string(), user_input.to_string()));
             }
-
-            self.add_message(Message::new("user".to_string(), user_input.to_string()));
         }
 
         Ok(())

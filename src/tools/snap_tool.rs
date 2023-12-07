@@ -11,7 +11,7 @@ pub struct SnapTool;
 #[async_trait]
 impl Tool for SnapTool {
     fn name(&self) -> &'static str {
-        "shell_tool"
+        "snap_tool"
     }
 
     fn description(&self) -> &'static str {
@@ -19,7 +19,10 @@ impl Tool for SnapTool {
     }
 
     fn parameters(&self) -> JsonValue {
-        json!(())
+        json!({
+            "type": "object",
+            "properties": {}
+        })
     }
 
     async fn execute(&self, _args: JsonValue) -> Result<String, AppError> {

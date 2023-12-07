@@ -46,4 +46,12 @@ impl ToolRegistry {
             )))
         }
     }
+
+    pub fn list_tools(&self) -> String {
+        let mut tools_listing = String::from("Available Tools:\n\n");
+        for tool in self.tools.values() {
+            tools_listing.push_str(&format!("{} - {}\n", tool.name(), tool.description()));
+        }
+        tools_listing
+    }
 }

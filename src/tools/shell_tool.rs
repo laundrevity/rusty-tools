@@ -44,7 +44,7 @@ impl Tool for ShellTool {
             execute_linux_commands(commands).await
         } else {
             Err(AppError::CommandError(
-                "commands argument to execute_linux_commands must be a string".to_string(),
+                "commands argument to ShellTool must be a string".to_string(),
             ))
         }
     }
