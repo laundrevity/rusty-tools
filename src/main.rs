@@ -1,7 +1,9 @@
 mod assistant;
-mod tool_function;
 mod types;
 mod utils;
+mod tool_registry;
+mod tools;
+mod traits;
 
 use crate::types::AppError;
 

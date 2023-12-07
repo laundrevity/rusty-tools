@@ -1,4 +1,6 @@
-use crate::tool_function::{get_tool_function_from_name, get_tools_json, ToolFunctionExecutor};
+use crate::tool_registry::ToolRegistry;
+use crate::tools::shell_tool::ShellTool;
+use crate::tools::snap_tool::SnapTool;
 use crate::types::{AppError, Message, OpenAIResponse};
 use crate::utils::{
     post_json, print_assistant_reply, print_colorful, print_user_prompt, read_file,
@@ -7,7 +9,7 @@ use crate::utils::{
 
 use crossterm::style::Color;
 use reqwest::Client;
-use serde_json::json;
+use serde_json::{json, Value as JsonValue};
 use std::io::{self};
 
 pub struct Assistant {
@@ -16,16 +18,22 @@ pub struct Assistant {
     model: String,
     messages: Vec<Message>,
     initial_prompt: String,
+    tool_registry: ToolRegistry,
 }
 
 impl Assistant {
     pub fn new(client: Client, api_key: String, model: &str, initial_prompt: &str) -> Self {
+        let mut tool_registry = ToolRegistry::new();
+        tool_registry.register(SnapTool);
+        tool_registry.register(ShellTool);
+
         Assistant {
             client,
             api_key,
             model: model.to_string(),
             messages: Vec::new(),
             initial_prompt: initial_prompt.to_string(),
+            tool_registry
         }
     }
 
@@ -45,7 +53,7 @@ impl Assistant {
             let payload = json!({
                 "model": self.model,
                 "messages": self.messages,
-                "tools": get_tools_json()
+                "tools": self.tool_registry.generate_tools_json()
             });
 
             let response: OpenAIResponse =
@@ -53,42 +61,28 @@ impl Assistant {
 
             self.add_message(response.choices[0].message.clone());
 
-            // Now check for tool calls, and if so add them to self.messages with results
-            if let Some(tool_calls) = response
-                .choices
-                .first()
-                .and_then(|c| c.message.tool_calls.as_ref())
-            {
+            if let Some(tool_calls) = &response.choices[0].message.tool_calls {
                 for tool_call in tool_calls {
                     let function_name = &tool_call.function.name;
-                    let arguments = &tool_call.function.arguments;
+                    let arguments: JsonValue = serde_json::from_str(&tool_call.function.arguments)?;
 
                     // Ask user for approval before executing tool call
-                    if request_tool_call_approval(tool_call).await? {
-                        if let Some(tool_function) = get_tool_function_from_name(function_name) {
-                            match tool_function.execute(arguments).await {
-                                Ok(result) => {
-                                    log::info!(
-                                        "Successfully executed tool call: {:?}\n=>\n{}",
-                                        tool_call,
-                                        result
-                                    );
-                                    print_colorful(
-                                        &format!("{}\n=>\n{}\n", tool_call.function.name, result),
-                                        Color::Magenta,
-                                    )?;
-                                    self.add_message(Message {
-                                        role: "tool".to_string(),
-                                        content: Some(result),
-                                        tool_calls: None,
-                                        tool_call_id: Some(tool_call.id.clone()),
-                                        name: Some(function_name.to_string()),
-                                    })
-                                }
-                                Err(e) => {
-                                    log::warn!("Failed to execute tool call: {:?}", tool_call);
-                                    println!("Error executing function `{}`: {}", function_name, e);
-                                }
+                    if request_tool_call_approval(&tool_call).await? {
+                        match self.tool_registry.execute_tool(function_name, arguments).await {
+                            Ok(result) => {
+                                log::info!("Successfully executed tool call: {:?}\n=>\n{}", tool_call, result);
+                                print_colorful(&format!("{}\n=>\n{}\n", function_name, result), Color::Magenta)?;
+                                self.add_message(Message {
+                                    role: "tool".to_string(),
+                                    content: Some(result),
+                                    tool_calls: None,
+                                    tool_call_id: Some(tool_call.id.clone()),
+                                    name: Some(function_name.to_string())
+                                });
+                            },
+                            Err(e) => {
+                                log::warn!("Failed to execute tool call: {:?} => {}", tool_call, e);
+                                println!("Error executing function `{}`: {}", function_name, e);
                             }
                         }
                     } else {
@@ -113,13 +107,13 @@ impl Assistant {
                     "model": self.model,
                     "messages": self.messages
                 });
-                let response: OpenAIResponse =
-                    post_json(&self.client, url, &self.api_key, &payload).await?;
-
+                let response: OpenAIResponse = post_json(&self.client, url, &self.api_key, &payload).await?;
+                
                 print_assistant_reply(response.choices[0].message.content.as_ref().unwrap())?;
             } else {
                 print_assistant_reply(response.choices[0].message.content.as_ref().unwrap())?;
             }
+
 
             // Handle user input
             print_user_prompt()?;
