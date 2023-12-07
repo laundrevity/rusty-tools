@@ -1,4 +1,4 @@
-use crate::utils::{post_json, print_assistant_reply, print_user_prompt, request_tool_call_approval, print_colorful};
+use crate::utils::{post_json, print_assistant_reply, print_user_prompt, request_tool_call_approval, print_colorful, read_file};
 use crate::tool_function::{ToolFunctionExecutor, get_tool_function_from_name, get_tools_json};
 use crate::types::{Message, OpenAIResponse, AppError};
 
@@ -16,12 +16,13 @@ pub struct Assistant {
 
 impl Assistant {
     pub fn new(client: Client, api_key: String, model: &str, initial_prompt: &str) -> Self {
+        let system_message = read_file("system.txt").unwrap();
         Assistant {
             client,
             api_key,
             model: model.to_string(),
             messages: vec!(
-                Message::new("system".to_string(), "You are a versatile assistant. You have the ability to call various tools to help the user".to_string()),
+                Message::new("system".to_string(), system_message),
                 Message::new("user".to_string(), initial_prompt.to_string())
             )
         }

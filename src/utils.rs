@@ -77,3 +77,7 @@ pub async fn request_tool_call_approval(tool_call: &ToolCall) -> Result<bool, Ap
     // Return true if approved ('y' or 'Y'), false otherwise
     Ok(approval.eq_ignore_ascii_case("y"))
 }
+
+pub fn read_file(file_path: &str) -> Result<String, AppError> {
+    std::fs::read_to_string(file_path).map_err(AppError::from)
+}
