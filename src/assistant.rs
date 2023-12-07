@@ -12,25 +12,27 @@ pub struct Assistant {
     api_key: String,
     model: String,
     messages: Vec<Message>,
+    initial_prompt: String,
 }
 
 impl Assistant {
     pub fn new(client: Client, api_key: String, model: &str, initial_prompt: &str) -> Self {
-        let system_message = read_file("system.txt").unwrap();
         Assistant {
             client,
             api_key,
             model: model.to_string(),
-            messages: vec!(
-                Message::new("system".to_string(), system_message),
-                Message::new("user".to_string(), initial_prompt.to_string())
-            )
+            messages: Vec::new(),
+            initial_prompt: initial_prompt.to_string()
         }
     }
 
     pub async fn run(&mut self) -> Result<(), AppError> {
         // Initial setup
         let url = "https://api.openai.com/v1/chat/completions";
+        let system_message = read_file("system.txt").unwrap();
+
+        self.add_message(Message::new("system".to_string(), system_message));
+        self.add_message(Message::new("user".to_string(), self.initial_prompt.to_string()));
 
         loop {
             // // JSON payload for the request
@@ -42,7 +44,7 @@ impl Assistant {
 
             let response: OpenAIResponse = post_json(&self.client, url, &self.api_key, &payload).await?;
 
-            self.messages.push(response.choices[0].message.clone());
+            self.add_message(response.choices[0].message.clone());
 
             // Now check for tool calls, and if so add them to self.messages with results
             if let Some(tool_calls) = response
@@ -58,8 +60,9 @@ impl Assistant {
                             if let Some(tool_function) = get_tool_function_from_name(function_name) {
                                 match tool_function.execute(arguments).await {
                                     Ok(result) => {
+                                        log::info!("Successfully executed tool call: {:?}\n=>\n{}", tool_call, result);
                                         print_colorful(&format!("{}\n=>\n{}\n", tool_call.function.name, result), Color::Magenta)?;
-                                        self.messages.push(Message {
+                                        self.add_message(Message {
                                             role: "tool".to_string(),
                                             content: Some(result),
                                             tool_calls: None,
@@ -68,15 +71,17 @@ impl Assistant {
                                         })
                                     },
                                     Err(e) => {
+                                        log::warn!("Failed to execute tool call: {:?}", tool_call);
                                         println!("Error executing function `{}`: {}", function_name, e);
                                     }
                                 }
                             }
                         } else {
                             // User rejected the tool call, add appropriate message to conversation
+                            log::warn!("User rejected tool call: {:?}", tool_call);
                             print_colorful(&format!("User rejected tool call: {:?}", tool_call), Color::DarkRed)?;
                                         
-                            self.messages.push(Message {
+                            self.add_message(Message {
                                 role: "tool".to_string(),
                                 content: Some("User rejected function call".to_string()),
                                 tool_calls: None,
@@ -107,12 +112,17 @@ impl Assistant {
                     break;
                 }
 
-                self.messages.push(Message::new(
+                self.add_message(Message::new(
                     "user".to_string(),
                     user_input.to_string()
                 ));
         }
 
         Ok(())
+    }
+
+    fn add_message(&mut self, message: Message) {
+        log::info!("[+] Message: {:?}", message);
+        self.messages.push(message);
     }
 }

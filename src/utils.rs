@@ -17,16 +17,18 @@ pub async fn post_json<T: DeserializeOwned>(
     api_key: &str,
     payload: &Value
 ) -> Result<T, AppError> {
-    client
+    log::debug!("Sending HTTP POST payload {:?} to {}", payload, url);
+    let response =client
         .post(url)
         .bearer_auth(api_key)
         .json(payload)
         .send()
         .await
-        .map_err(AppError::from)?
-        .json()
-        .await
-        .map_err(AppError::from)
+        .map_err(AppError::from)?;
+
+    log::debug!("HTTP Response Status: {:?}", response.status()); // Log response status
+
+    response.json().await.map_err(AppError::from)
 }
 
 // Utility function to print to console with the specified color
@@ -52,6 +54,8 @@ pub fn print_user_prompt() -> Result<(), AppError> {
 
 // Utility function to pretty-print the tool's function call arguments and ask for user approval
 pub async fn request_tool_call_approval(tool_call: &ToolCall) -> Result<bool, AppError> {
+    log::info!("Requesting user approval for tool call: {:?}", tool_call);
+
     // Deserialize JSON arguments string into serde_json::Value
     let args: serde_json::Value = serde_json::from_str(&tool_call.function.arguments)?;
 
