@@ -1,13 +1,13 @@
 # Rusty Tool Assistant
 
-A versatile console-based assistant powered by an OpenAI model, capable of executing various tool functions to assist users with their queries.
+A modular and extensible console-based assistant leveraging OpenAI's GPT models, structured to dynamically execute an expanding set of tools based on user requests.
 
 ## Features
 
-- Execute a series of Linux commands with concatenated output
-- Generate a snapshot of the current project's source code
-- Utilize OpenAI's models to understand and process user queries
-- Interactive console interface for user inputs and tool executions
+- Dynamic tool execution allows for a flexible extension of available commands
+- Utilizes OpenAI's GPT models for an interactive and intelligent command line experience
+- A Tool Registry allows for seamless onboarding of new tools without altering core logic
+- Interactive console interface for engaging user interaction
 
 ## Prerequisites
 
@@ -20,12 +20,14 @@ Before running the Rusty Tool Assistant, ensure you have:
 
 1. Clone the repository:
    ```
-   git clone https://github.com/laundrevity/rtool.git
+   git clone https://github.com/laundrevity/rusty-tools.git
    ```
+
 2. Navigate to the project directory:
    ```
-   cd rtool
+   cd rusty-tools
    ```
+
 3. Build the project using Cargo (Rust's package manager):
    ```
    cargo build --release
@@ -40,51 +42,54 @@ cargo run -- "Your initial prompt here"
 ```
 
 Optional flags:
-- `-m`, `--model` to specify the OpenAI model. Default is `gpt-4-1106-preview`.
+- `-m`, `--model` to specify the OpenAI model (default: `gpt-4-1106-preview`).
+- `-l`, `--log-level` to specify the logging level (INFO, DEBUG, TRACE, WARN, ERROR).
 
 ## Configuration
 
-To use the assistant, you need to set your OpenAI API key in your environment variables:
+Set your OpenAI API key in your environment variables to authenticate the API calls:
 
 ```
 export OPENAI_API_KEY='your_api_key_here'
 ```
 
-## Tool Functions
+## Tool Registry
 
-### execute_linux_commands
+The assistant is built with a tool registry system that dynamically loads and manages all available tools. Each tool is encapsulated into its own module, following the `Tool` trait to define its unique behavior.
 
-Executes a given list of Linux commands and returns their output. 
+### Current Tools
 
-#### Example:
-```
-{
-    "commands": "[{\"command\": \"echo\", \"args\": [\"Hello, World!\"]}]"
-}
-```
-### get_snapshot
-
-Generates a snapshot of the current project's source code, including the `Cargo.toml` and `.rs` files in the `src` directory.
+- **ShellTool**: Executes Linux shell commands.
+- **SnapTool**: Generates a snapshot of the current project state.
 
 ## Development
 
-For developers looking to contribute to or modify the assistant, source files are located in the `src` directory.
+All tool implementations are modular and can be found within the `src/tools` directory. Developers can contribute by creating new tools or enhancing existing ones in a plug-and-play fashion.
 
 ### Key Modules:
 - `main.rs`: Entry point for the assistant application.
-- `assistant.rs`: Core logic for interacting with the user and processing requests.
-- `tool_function.rs`: Definitions and execution details for tool functions.
-- `types.rs`: Defines the data types used throughout the application.
-- `utils.rs`: Helper functions for various tasks such as making HTTP requests and printing colored console outputs.
+- `assistant.rs`: Manages the interaction loop with the user and tool execution.
+- `tool_registry.rs`: Central management of tool instances.
+- `tools/`: Directory containing all the individual tools.
+- `types.rs`: Custom types and error handling for application-wide use.
+- `utils.rs`: Contains utility functions to aid operations like HTTP requests and terminal I/O.
+
+## Extending the Tool Registry
+
+To add a new tool, create a new module within the `src/tools/` directory implementing the `Tool` trait and register it within the `ToolRegistry` in the Assistant.
 
 ## Troubleshooting
 
-If you encounter any issues, refer to the error messages provided by the assistant. Ensure your OpenAI API key is correctly set and you have a stable internet connection.
+Common issues can typically be resolved by verifying your OpenAI API key and internet connection. Consult the error messages provided in the terminal for troubleshooting guidance.
 
 ## License
 
-The Rusty Tool Assistant is open source and available under the [MIT License](LICENSE).
+Rusty Tool Assistant is open source, released under the [MIT License](LICENSE).
 
 ## Acknowledgments
 
-This project utilizes services provided by [OpenAI](https://openai.com/). We thank the open-source community for their contributions and support.
+This project is dependent on OpenAI's services and salutes the broader open-source community for ongoing support and contributions.
+
+## Contributions
+
+We welcome contributions from the community. To contribute, please fork the repository, create a feature branch, and submit a pull request for review.
