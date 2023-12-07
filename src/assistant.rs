@@ -19,10 +19,11 @@ pub struct Assistant {
     messages: Vec<Message>,
     initial_prompt: String,
     tool_registry: ToolRegistry,
+    include_state: bool,
 }
 
 impl Assistant {
-    pub fn new(client: Client, api_key: String, model: &str, initial_prompt: &str) -> Self {
+    pub fn new(client: Client, api_key: String, model: &str, initial_prompt: &str, include_state: bool) -> Self {
         let mut tool_registry = ToolRegistry::new();
         tool_registry.register(SnapTool);
         tool_registry.register(ShellTool);
@@ -33,14 +34,24 @@ impl Assistant {
             model: model.to_string(),
             messages: Vec::new(),
             initial_prompt: initial_prompt.to_string(),
-            tool_registry
+            tool_registry,
+            include_state,
         }
     }
 
     pub async fn run(&mut self) -> Result<(), AppError> {
         // Initial setup
         let url = "https://api.openai.com/v1/chat/completions";
-        let system_message = read_file("system.txt").unwrap();
+        let mut system_message = read_file("system.txt").unwrap();
+
+        if self.include_state {
+            if let Ok(state_contents) = read_file("state.txt") {
+                system_message.push_str("\nHere is the current project source code:\n");
+                system_message.push_str(&state_contents);
+            } else {
+                log::warn!("state.txt not found, continuing without state (run `cargo test` to generate it)");
+            }
+        }
 
         self.add_message(Message::new("system".to_string(), system_message));
         self.add_message(Message::new(
