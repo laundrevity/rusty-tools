@@ -1,10 +1,11 @@
+use crate::utils::{post_json, print_assistant_reply, print_user_prompt, request_tool_call_approval, print_colorful};
 use crate::tool_function::{ToolFunctionExecutor, get_tool_function_from_name, get_tools_json};
-use crate::utils::{post_json, print_assistant_reply, print_user_prompt};
 use crate::types::{Message, OpenAIResponse, AppError};
 
 use reqwest::Client;
 use serde_json::json;
 use std::io::{self};
+use crossterm::style::Color;
 
 pub struct Assistant {
     client: Client,
@@ -51,24 +52,39 @@ impl Assistant {
                         let function_name = &tool_call.function.name;
                         let arguments = &tool_call.function.arguments;
 
-                        if let Some(tool_function) = get_tool_function_from_name(function_name) {
-                            match tool_function.execute(arguments).await {
-                                Ok(result) => {
-                                    println!("{}\n=>\n{}", function_name, result);
-                                    self.messages.push(Message {
-                                        role: "tool".to_string(),
-                                        content: Some(result),
-                                        tool_calls: None,
-                                        tool_call_id: Some(tool_call.id.clone()),
-                                        name: Some(function_name.to_string()),
-                                    })
-                                },
-                                Err(e) => {
-                                    println!("Error executing function `{}`: {}", function_name, e);
+                        // Ask user for approval before executing tool call
+                        if request_tool_call_approval(tool_call).await? {
+                            if let Some(tool_function) = get_tool_function_from_name(function_name) {
+                                match tool_function.execute(arguments).await {
+                                    Ok(result) => {
+                                        print_colorful(&format!("{}\n=>\n{}\n", tool_call.function.name, result), Color::Magenta)?;
+                                        self.messages.push(Message {
+                                            role: "tool".to_string(),
+                                            content: Some(result),
+                                            tool_calls: None,
+                                            tool_call_id: Some(tool_call.id.clone()),
+                                            name: Some(function_name.to_string()),
+                                        })
+                                    },
+                                    Err(e) => {
+                                        println!("Error executing function `{}`: {}", function_name, e);
+                                    }
                                 }
                             }
+                        } else {
+                            // User rejected the tool call, add appropriate message to conversation
+                            print_colorful(&format!("User rejected tool call: {:?}", tool_call), Color::DarkRed)?;
+                                        
+                            self.messages.push(Message {
+                                role: "tool".to_string(),
+                                content: Some("User rejected function call".to_string()),
+                                tool_calls: None,
+                                tool_call_id: Some(tool_call.id.clone()),
+                                name: Some(function_name.to_string())
+                            });
                         }
                     }
+
                     let payload = json!({
                         "model": self.model,
                         "messages": self.messages

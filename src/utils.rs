@@ -1,4 +1,4 @@
-use crate::types::AppError;
+use crate::types::{AppError, ToolCall};
 
 use serde::de::DeserializeOwned;
 use reqwest::Client;
@@ -48,4 +48,32 @@ pub fn print_assistant_reply(reply: &str) -> Result<(), AppError> {
 // Utility function for printing the user input prefix
 pub fn print_user_prompt() -> Result<(), AppError> {
     print_colorful("User: ", Color::Yellow)
+}
+
+// Utility function to pretty-print the tool's function call arguments and ask for user approval
+pub async fn request_tool_call_approval(tool_call: &ToolCall) -> Result<bool, AppError> {
+    // Deserialize JSON arguments string into serde_json::Value
+    let args: serde_json::Value = serde_json::from_str(&tool_call.function.arguments)?;
+
+    // Pretty-print the arguments
+    let pretty_args = serde_json::to_string_pretty(&args)?;
+
+    // Printing information with formatted pretty-printed arguments
+    // Let's use a gentle Blue color for the prompt
+    print_colorful(
+        &format!("\n{}({}) ? (y/n) ", tool_call.function.name, pretty_args), 
+        Color::Blue
+    )?;
+
+    // Request user input with a printed prompt
+    print!("_ ");
+    io::stdout().flush().map_err(AppError::from)?;
+
+    // Read user input
+    let mut approval = String::new();
+    io::stdin().read_line(&mut approval).map_err(AppError::from)?;
+    let approval = approval.trim();
+
+    // Return true if approved ('y' or 'Y'), false otherwise
+    Ok(approval.eq_ignore_ascii_case("y"))
 }
