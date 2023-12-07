@@ -66,7 +66,7 @@ pub async fn request_tool_call_approval(tool_call: &ToolCall) -> Result<bool, Ap
     )?;
 
     // Request user input with a printed prompt
-    print!("_ ");
+    print!("> ");
     io::stdout().flush().map_err(AppError::from)?;
 
     // Read user input

@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use serde_json::{json, Result as JsonResult, Value as JsonValue};
 use serde::de::Error as DeError;
 use serde_derive::{Deserialize, Serialize};
-use tokio::time::{sleep, Duration};
 use std::process::{Command, Output};
 use std::io;
 use std::fs;
@@ -17,14 +16,12 @@ pub trait ToolFunctionExecutor {
 }
 
 pub enum ToolFunction {
-    GetCurrentWeather,
     ExecuteLinuxCommands,
     GetSnapshot,
 }
 
 pub fn get_tool_function_from_name(name: &str) -> Option<ToolFunction> {
     match name {
-        "get_current_weather" => Some(ToolFunction::GetCurrentWeather),
         "execute_linux_commands" => Some(ToolFunction::ExecuteLinuxCommands),
         "get_snapshot" => Some(ToolFunction::GetSnapshot),
         _ => None,
@@ -35,17 +32,6 @@ pub fn get_tool_function_from_name(name: &str) -> Option<ToolFunction> {
 impl ToolFunctionExecutor for ToolFunction {
     async fn execute(&self, args: &str) -> Result<String, AppError> {
         match self {
-            ToolFunction::GetCurrentWeather => {
-                // Parse arguments string into JSON
-                let args: JsonValue = serde_json::from_str(args)?;
-
-                // Extract location argument
-                if let Some(location) = args["location"].as_str() {
-                    get_current_weather(location.to_string()).await
-                } else {
-                    Err(AppError::CommandError("Missing location argument to get_current_weather function".to_string()))
-                }
-            },
             ToolFunction::ExecuteLinuxCommands => {
                 // Parse arguments string into JSON
                 let args: JsonValue = serde_json::from_str(args)?;
@@ -67,13 +53,6 @@ impl ToolFunctionExecutor for ToolFunction {
 struct LinuxCommand {
     command: String,
     args: Option<Vec<String>>,
-}
-
-async fn get_current_weather(location: String) -> Result<String, AppError> {
-    // Simulate API call by sleeping for 1 sec
-    sleep(Duration::from_secs(1)).await;
-
-    Ok(format!("Decent weather in {}, innit?", location))
 }
 
 async fn execute_linux_commands(commands: Vec<LinuxCommand>) -> Result<String, AppError> {
@@ -155,23 +134,6 @@ async fn read_file_contents<P: AsRef<Path>>(path: P) -> JsonResult<String> {
 
 pub fn get_tools_json() -> JsonValue {
     json!([
-        {
-            "type": "function",
-            "function": {
-                "name": "get_current_weather",
-                "description": "Get the current weather in a given location",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "location": {
-                            "type": "string",
-                            "description": "The city to get the weather for"
-                        }
-                    },
-                    "required": ["location"]
-                }
-            }
-        },
         {
             "type": "function",
             "function": {
