@@ -216,7 +216,12 @@ impl Assistant {
                 response = self.get_response(false).await?;
             }
 
-            print_assistant_reply(response.choices[0].message.content.as_ref().unwrap())?;
+            match &response.choices[0].message.content {
+                Some(content) => {
+                    print_assistant_reply(&content)?;
+                },
+                None => {}
+            }
 
             // Handle user input
             let tokens = self.get_prompt_tokens_option();
