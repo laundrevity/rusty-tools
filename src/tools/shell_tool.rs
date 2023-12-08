@@ -1,5 +1,4 @@
-use crate::traits::Tool;
-use crate::types::AppError;
+use crate::models::{traits::Tool, types::AppError};
 
 use async_trait::async_trait;
 use schemars::schema::RootSchema;
