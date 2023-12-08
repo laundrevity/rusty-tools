@@ -5,8 +5,15 @@ use serde::de::Error as DeError;
 use serde_json::{json, Result as JsonResult, Value as JsonValue};
 use std::fs;
 use std::path::Path;
+use schemars::{JsonSchema, schema_for};
 
 pub struct SnapTool;
+
+#[derive(JsonSchema)]
+struct SnapToolInput {
+
+}
+
 
 #[async_trait]
 impl Tool for SnapTool {
@@ -27,6 +34,11 @@ impl Tool for SnapTool {
 
     async fn execute(&self, _args: JsonValue) -> Result<String, AppError> {
         create_project_snapshot().await
+    }
+
+    fn input_schema(&self) -> String {
+        let schema = schema_for!(SnapToolInput);
+        serde_json::to_string(&schema).unwrap()
     }
 }
 

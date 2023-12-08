@@ -36,6 +36,17 @@ impl ToolRegistry {
         JsonValue::Array(tools_json)
     }
 
+    pub fn generate_tools_schemas(&self) -> String {
+        let mut schemas_str = String::new();
+        for tool in self.tools.values() {
+            schemas_str.push_str(&format!("{} schena:\n", tool.name()));
+            schemas_str.push_str(&tool.input_schema());
+            schemas_str.push_str("\n\n");
+        }
+
+        schemas_str
+    }
+
     pub async fn execute_tool(&self, tool_name: &str, args: JsonValue) -> Result<String, AppError> {
         if let Some(tool) = self.tools.get(tool_name) {
             tool.execute(args).await

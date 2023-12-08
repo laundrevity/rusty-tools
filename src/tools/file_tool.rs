@@ -6,8 +6,9 @@ use serde_derive::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
 use tokio::fs::{self, File};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use schemars::{JsonSchema, schema_for};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 struct FileOperation {
     op: FileOpType,
     file_path: String,
@@ -15,7 +16,7 @@ struct FileOperation {
     line: Option<usize>,     // For line-specific operations
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 enum FileOpType {
     Create,
@@ -23,6 +24,11 @@ enum FileOpType {
     InsertLine,
     DeleteLine,
     UpdateLine,
+}
+
+#[derive(JsonSchema, Deserialize)]
+struct FileToolInput {
+    operations: Vec<FileOperation>,
 }
 
 pub struct FileTool;
@@ -51,62 +57,60 @@ impl Tool for FileTool {
     }
 
     async fn execute(&self, args: JsonValue) -> Result<String, AppError> {
-        // Deserialize the arguments into a Vec<FileOperation>
-        if let JsonValue::String(operations_json_string) = args["operations"].clone() {
-            let operations: Vec<FileOperation> = serde_json::from_str(&operations_json_string)?;
-
-            for operation in operations {
-                match operation.op {
-                    FileOpType::Create => {
-                        if let Some(content) = operation.content {
-                            create_file(&operation.file_path, &content).await?;
-                        } else {
-                            return Err(AppError::CommandError(
-                                "Missing file content for create operation".to_string(),
-                            ));
-                        }
+        let input: FileToolInput = serde_json::from_value(args)?;
+        
+        for operation in input.operations {
+            match operation.op {
+                FileOpType::Create => {
+                    if let Some(content) = operation.content {
+                        create_file(&operation.file_path, &content).await?;
+                    } else {
+                        return Err(AppError::CommandError(
+                            "Missing file content for create operation".to_string(),
+                        ));
                     }
-                    FileOpType::Delete => {
-                        delete_file(&operation.file_path).await?;
+                }
+                FileOpType::Delete => {
+                    delete_file(&operation.file_path).await?;
+                }
+                FileOpType::InsertLine => {
+                    if let (Some(content), Some(line)) = (operation.content, operation.line) {
+                        insert_line(&operation.file_path, line, &content).await?;
+                    } else {
+                        return Err(AppError::CommandError(
+                            "Missing line content or line number for insert line operation"
+                                .to_string(),
+                        ));
                     }
-                    FileOpType::InsertLine => {
-                        if let (Some(content), Some(line)) = (operation.content, operation.line) {
-                            insert_line(&operation.file_path, line, &content).await?;
-                        } else {
-                            return Err(AppError::CommandError(
-                                "Missing line content or line number for insert line operation"
-                                    .to_string(),
-                            ));
-                        }
+                }
+                FileOpType::DeleteLine => {
+                    if let Some(line) = operation.line {
+                        delete_line(&operation.file_path, line).await?;
+                    } else {
+                        return Err(AppError::CommandError(
+                            "Missing line number for delete line operation".to_string(),
+                        ));
                     }
-                    FileOpType::DeleteLine => {
-                        if let Some(line) = operation.line {
-                            delete_line(&operation.file_path, line).await?;
-                        } else {
-                            return Err(AppError::CommandError(
-                                "Missing line number for delete line operation".to_string(),
-                            ));
-                        }
-                    }
-                    FileOpType::UpdateLine => {
-                        if let (Some(content), Some(line)) = (operation.content, operation.line) {
-                            update_line(&operation.file_path, line, &content).await?;
-                        } else {
-                            return Err(AppError::CommandError(
-                                "Missing line content or line number for update line operation"
-                                    .to_string(),
-                            ));
-                        }
+                }
+                FileOpType::UpdateLine => {
+                    if let (Some(content), Some(line)) = (operation.content, operation.line) {
+                        update_line(&operation.file_path, line, &content).await?;
+                    } else {
+                        return Err(AppError::CommandError(
+                            "Missing line content or line number for update line operation"
+                                .to_string(),
+                        ));
                     }
                 }
             }
-
-            Ok("File operations completed successfully.".to_string())
-        } else {
-            Err(AppError::CommandError(
-                "operations argument to FileTool must be a string".to_string(),
-            ))
         }
+
+        Ok("File operations completed successfully.".to_string())
+    }
+
+    fn input_schema(&self) -> String {
+        let schema = schema_for!(FileToolInput);
+        serde_json::to_string(&schema).unwrap()
     }
 }
 
@@ -286,5 +290,13 @@ mod tests {
 
         // Cleanup
         let _ = fs::remove_file(test_file).await;
+    }
+
+    #[test]
+    fn test_file_input_schema() {
+        let file_tool = FileTool;
+        let schema_str = file_tool.input_schema();
+        let _schema: schemars::schema::RootSchema = serde_json::from_str(&schema_str).unwrap();
+        dbg!(_schema);
     }
 }

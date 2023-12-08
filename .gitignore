@@ -4,3 +4,5 @@ Cargo.lock
 state.txt
 logs/
 proc_macro_crate/target/
+conversations/
+.DS_Store

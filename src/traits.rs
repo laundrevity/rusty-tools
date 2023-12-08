@@ -9,4 +9,5 @@ pub trait Tool: Sync + Send {
     fn description(&self) -> &'static str;
     fn parameters(&self) -> JsonValue; // JSON object representing parameters
     async fn execute(&self, args: JsonValue) -> Result<String, AppError>;
+    fn input_schema(&self) -> String;
 }
