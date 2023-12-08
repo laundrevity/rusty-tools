@@ -11,7 +11,7 @@ pub struct FunctionCall {
 pub struct ToolCall {
     pub id: String,
     #[serde(rename = "type")]
-    r#type: String,
+    pub r#type: String,
     pub function: FunctionCall,
 }
 

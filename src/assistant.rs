@@ -1,8 +1,7 @@
-use clap::App;
 use proc_macro_crate::auto_register_tools;
 
 use crate::tool_registry::ToolRegistry;
-use crate::types::{AppError, Message, OpenAIResponse};
+use crate::types::{AppError, Message, OpenAIResponse, ToolCall};
 use crate::utils::{
     post_json, print_assistant_reply, print_colorful, print_user_prompt, read_file,
     request_tool_call_approval,
@@ -46,6 +45,7 @@ pub struct Assistant {
     tokens: u32,
     conversation_id: String,
     found_next_prompt: bool,
+    endpoint_url: &'static str,
 }
 
 impl Assistant {
@@ -71,6 +71,7 @@ impl Assistant {
             tokens: 0,
             conversation_id: Uuid::new_v4().to_string(),
             found_next_prompt: false,
+            endpoint_url: "https://api.openai.com/v1/chat/completions",
         }
     }
 
@@ -78,13 +79,13 @@ impl Assistant {
         match command {
             UserCommand::Exit => {
                 self.exit();
-            },
+            }
             UserCommand::ListTools => {
                 self.list_available_tools().await?;
-            },
+            }
             UserCommand::LoadConversation(conv_id) => {
                 self.load_conversation(&conv_id).await?;
-            },
+            }
             UserCommand::Other(input) => {
                 self.process_input(&input).await?;
             }
@@ -102,7 +103,10 @@ impl Assistant {
         let file_path = format!("conversations/{}.json", conversation_id);
         let content = std::fs::read_to_string(file_path)?;
         let new_messages: Vec<Message> = serde_json::from_str(&content)?;
-        print_colorful(&format!("Successfully loaded conversation {}\n", conversation_id), Color::DarkMagenta)?;
+        print_colorful(
+            &format!("Successfully loaded conversation {}\n", conversation_id),
+            Color::DarkMagenta,
+        )?;
 
         self.messages = new_messages;
         self.conversation_id = conversation_id.to_string();
@@ -150,10 +154,8 @@ impl Assistant {
         }
     }
 
-    pub async fn run(&mut self) -> Result<(), AppError> {
-        // Initial setup
-        let url = "https://api.openai.com/v1/chat/completions";
-        let mut system_message = read_file("system.txt").unwrap();
+    pub fn initialize_conversation(&mut self) -> Result<(), AppError> {
+        let mut system_message = read_file("system.txt")?;
 
         if self.include_state {
             if let Ok(state_contents) = read_file("state.txt") {
@@ -173,99 +175,52 @@ impl Assistant {
             self.initial_prompt.to_string(),
         ));
 
-        loop {
-            // // JSON payload for the request -- allowing for tool calls
-            let payload = json!({
+        Ok(())
+    }
+
+    async fn get_response(&mut self, use_tools: bool) -> Result<OpenAIResponse, AppError> {
+        let payload = if use_tools {
+            json!({
                 "model": self.model,
                 "messages": self.messages,
                 "tools": self.tool_registry.generate_tools_json()
-            });
+            })
+        } else {
+            json!({
+                "model": self.model,
+                "messages": self.messages
+            })
+        };
 
-            let response: OpenAIResponse =
-                post_json(&self.client, url, &self.api_key, &payload).await?;
-            self.tokens = response.usage.total_tokens;
-            self.add_message(response.choices[0].message.clone());
+        let response: OpenAIResponse =
+            post_json(&self.client, self.endpoint_url, &self.api_key, &payload).await?;
+        self.tokens = response.usage.total_tokens;
+        self.add_message(response.choices[0].message.clone());
+
+        Ok(response)
+    }
+
+    pub async fn run(&mut self) -> Result<(), AppError> {
+        self.initialize_conversation()?;
+
+        loop {
+            let mut response: OpenAIResponse = self.get_response(true).await?;
 
             if let Some(tool_calls) = &response.choices[0].message.tool_calls {
                 for tool_call in tool_calls {
-                    let function_name = &tool_call.function.name;
-                    let arguments: JsonValue = serde_json::from_str(&tool_call.function.arguments)?;
-
-                    // Ask user for approval before executing tool call
-                    if request_tool_call_approval(&tool_call).await? {
-                        match self
-                            .tool_registry
-                            .execute_tool(function_name, arguments)
-                            .await
-                        {
-                            Ok(result) => {
-                                log::info!(
-                                    "Successfully executed tool call: {:?}\n=>\n{}",
-                                    tool_call,
-                                    result
-                                );
-                                print_colorful(
-                                    &format!("{}\n=>\n{}\n", function_name, result),
-                                    Color::Magenta,
-                                )?;
-                                self.add_message(Message {
-                                    role: "tool".to_string(),
-                                    content: Some(result),
-                                    tool_calls: None,
-                                    tool_call_id: Some(tool_call.id.clone()),
-                                    name: Some(function_name.to_string()),
-                                });
-                            }
-                            Err(e) => {
-                                log::warn!("Failed to execute tool call: {:?} => {}", tool_call, e);
-                                let error_str =
-                                    format!("Error executing function `{}`: {}", function_name, e);
-                                self.add_message(Message {
-                                    role: "tool".to_string(),
-                                    content: Some(error_str),
-                                    tool_calls: None,
-                                    tool_call_id: Some(tool_call.id.clone()),
-                                    name: Some(function_name.to_string()),
-                                })
-                            }
-                        }
-                    } else {
-                        // User rejected the tool call, add appropriate message to conversation
-                        log::warn!("User rejected tool call: {:?}", tool_call);
-                        print_colorful(
-                            &format!("User rejected tool call: {:?}", tool_call),
-                            Color::DarkRed,
-                        )?;
-
-                        self.add_message(Message {
-                            role: "tool".to_string(),
-                            content: Some("User rejected function call".to_string()),
-                            tool_calls: None,
-                            tool_call_id: Some(tool_call.id.clone()),
-                            name: Some(function_name.to_string()),
-                        });
-                    }
+                    self.handle_tool_call(tool_call).await?;
                 }
 
-                // JSON payload not allowing for tool calls
-                let payload = json!({
-                    "model": self.model,
-                    "messages": self.messages
-                });
-                let response: OpenAIResponse =
-                    post_json(&self.client, url, &self.api_key, &payload).await?;
-                self.tokens = response.usage.total_tokens;
-                self.add_message(response.choices[0].message.clone());
-
-                print_assistant_reply(response.choices[0].message.content.as_ref().unwrap())?;
-            } else {
-                print_assistant_reply(response.choices[0].message.content.as_ref().unwrap())?;
+                response = self.get_response(false).await?;
             }
+
+            print_assistant_reply(response.choices[0].message.content.as_ref().unwrap())?;
 
             // Handle user input
             let tokens = self.get_prompt_tokens_option();
             self.found_next_prompt = false;
 
+            // Keep looping until we get next user prompt
             while !self.found_next_prompt {
                 print_user_prompt(tokens)?;
                 if let Some(command) = self.read_user_command()? {
@@ -276,27 +231,70 @@ impl Assistant {
                     break;
                 }
             }
-
         }
+    }
+
+    async fn handle_tool_call(&mut self, tool_call: &ToolCall) -> Result<(), AppError> {
+        let function_name = &tool_call.function.name;
+        let arguments: JsonValue = serde_json::from_str(&tool_call.function.arguments)?;
+        let tool_result;
+
+        if request_tool_call_approval(&tool_call).await? {
+            match self
+                .tool_registry
+                .execute_tool(&function_name, arguments)
+                .await
+            {
+                Ok(result) => {
+                    let tool_call_str = format!("{:?}\n=>\n{}\n", tool_call, result);
+                    log::info!("Succesfully executed tool call: {}", tool_call_str);
+                    print_colorful(&tool_call_str, Color::White)?;
+                    tool_result = result;
+                }
+                Err(e) => {
+                    let error_str =
+                        format!("Error executing tool call: {:?}\n=>\n{}", tool_call, e);
+                    log::warn!("{}", error_str);
+                    print_colorful(&error_str, Color::Red)?;
+                    tool_result = e.to_string();
+                }
+            }
+        } else {
+            let error_str = format!("User rejected tool call: {:?}", tool_call);
+            log::warn!("{}", error_str);
+            print_colorful(&error_str, Color::DarkRed)?;
+            tool_result = error_str;
+        }
+
+        self.add_message(Message {
+            role: "tool".to_string(),
+            content: Some(tool_result),
+            tool_calls: None,
+            tool_call_id: Some(tool_call.id.clone()),
+            name: Some(function_name.to_string()),
+        });
+
+        Ok(())
     }
 
     fn add_message(&mut self, message: Message) {
         log::info!("[+] Message: {:?}", message);
         self.messages.push(message);
 
+        // Try to serialize the entire conversation to JSON and write to file
         match serde_json::to_string(&self.messages) {
             Ok(messages_str) => {
                 let conversation_file_path = format!("conversations/{}.json", self.conversation_id);
-                let mut file = File::create(&conversation_file_path).map_err(AppError::from).unwrap();
-                
+                let mut file = File::create(&conversation_file_path)
+                    .map_err(AppError::from)
+                    .unwrap();
+
                 file.write_all(messages_str.as_bytes()).unwrap();
-            
-            },
+            }
             Err(_) => {
                 log::warn!("Failed to write conversation")
             }
         }
-
     }
 }
 
@@ -306,8 +304,14 @@ mod tests {
 
     #[test]
     fn test_serde_messages() {
-        let mut messages = vec!(Message::new("system".to_string(), "You're a lumberjack and you're okay.".to_string()));
-        messages.push(Message::new("user".to_string(), "What do you seek?".to_string()));
+        let mut messages = vec![Message::new(
+            "system".to_string(),
+            "You're a lumberjack and you're okay.".to_string(),
+        )];
+        messages.push(Message::new(
+            "user".to_string(),
+            "What do you seek?".to_string(),
+        ));
 
         let messages_str = serde_json::to_string(&messages).unwrap();
         let decoded_messages: Vec<Message> = serde_json::from_str(&messages_str).unwrap();

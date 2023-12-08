@@ -1,10 +1,10 @@
-use crate::traits::Tool;
 use crate::assistant::GLOBAL_TOOL_REGISTRY;
+use crate::traits::Tool;
 use crate::types::AppError;
 
 use async_trait::async_trait;
 use serde_derive::{Deserialize, Serialize};
-use serde_json::{self, json, Value as JsonValue, value::RawValue};
+use serde_json::{self, json, value::RawValue, Value as JsonValue};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PipelineTool;
@@ -15,7 +15,6 @@ struct PipelineStep {
     tool: String,
     parameters: Box<RawValue>,
 }
-
 
 impl PipelineTool {
     // Helper function to substitute placeholders with context values
@@ -43,15 +42,16 @@ impl PipelineTool {
                 }
                 JsonValue::Object(resolved)
             }
-            JsonValue::Array(vec) => {
-                JsonValue::Array(vec.iter().map(|v| Self::resolve_parameters(v, context)).collect())
-            }
+            JsonValue::Array(vec) => JsonValue::Array(
+                vec.iter()
+                    .map(|v| Self::resolve_parameters(v, context))
+                    .collect(),
+            ),
             JsonValue::String(s) => JsonValue::String(Self::substitute_placeholders(s, context)),
             _ => params.clone(),
         }
     }
 }
-
 
 #[async_trait]
 impl Tool for PipelineTool {
@@ -74,24 +74,22 @@ impl Tool for PipelineTool {
             }
         })
     }
-    
+
     async fn execute(&self, args: JsonValue) -> Result<String, AppError> {
         if let JsonValue::String(steps_json_string) = args["steps"].clone() {
             let steps: Vec<PipelineStep> = serde_json::from_str(&steps_json_string)?;
             let mut context = serde_json::Map::new();
-    
+
             for step in steps {
                 let raw_parameters_json = step.parameters.get(); // Get JSON as a string.
-                
+
                 // Deserialize JSON string to JsonValue (serde_json::Value)
                 let parameters_json = serde_json::from_str(raw_parameters_json)
                     .map_err(|_| AppError::CommandError("Invalid JSON parameters".into()))?;
-                
+
                 // Substitute placeholders and resolve to a final JsonValue.
-                let resolved_parameters = Self::resolve_parameters(
-                    &parameters_json,
-                    &JsonValue::Object(context.clone())
-                );
+                let resolved_parameters =
+                    Self::resolve_parameters(&parameters_json, &JsonValue::Object(context.clone()));
 
                 // Serialize parameters if they need to be a string otherwise keep as JsonValue.
                 let serialized_parameters = match &resolved_parameters {
@@ -105,10 +103,10 @@ impl Tool for PipelineTool {
                 let output = GLOBAL_TOOL_REGISTRY
                     .execute_tool(&step.tool, serde_json::from_str(&serialized_parameters)?)
                     .await?;
-    
+
                 context.insert(step.id.clone(), JsonValue::String(output));
             }
-    
+
             Ok(serde_json::to_string(&JsonValue::Object(context))?)
         } else {
             return Err(AppError::CommandError(
@@ -136,7 +134,8 @@ mod tests {
                     "args": ["hello world"]
                 }
             ]
-        ).to_string();
+        )
+        .to_string();
 
         // Step that simulates `echo "hello world"`
         let args = json!({
@@ -175,18 +174,20 @@ mod tests {
                     "args": ["hello"]
                 }
             ]
-        ).to_string();
+        )
+        .to_string();
 
         let second_commands_json_string = json!(
             [
                 {
                     "command": "echo",
-                    // The substitution placeholder is used here, 
+                    // The substitution placeholder is used here,
                     // expecting to be replaced with output from first step
                     "args": ["${firstEcho} world"]
                 }
             ]
-        ).to_string();
+        )
+        .to_string();
 
         // Steps that simulate first echo "hello" and then echo result
         let args = json!({
@@ -219,7 +220,5 @@ mod tests {
         assert_eq!(first_echo_output, "hello");
         // The output from the first command will be the one that gets substituted into the second command call.
         assert_eq!(second_echo_output, "hello world");
-        
-
     }
 }
