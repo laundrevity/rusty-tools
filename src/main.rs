@@ -33,7 +33,7 @@ async fn main() -> Result<(), AppError> {
         model,
         initial_prompt,
         matches.is_present("state"),
-        matches.is_present("usage")
+        matches.is_present("usage"),
     );
 
     assistant.run().await?;
@@ -80,7 +80,7 @@ fn parse_command_line_arguments() -> Result<ArgMatches, AppError> {
                 .short('u')
                 .takes_value(false)
                 .long("usage")
-                .help("Prepends user prompts with the current token count")
+                .help("Prepends user prompts with the current token count"),
         )
         .get_matches();
 

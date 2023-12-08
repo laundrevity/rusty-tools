@@ -111,6 +111,6 @@ impl From<serde_json::Error> for AppError {
 
 impl From<tokio::task::JoinError> for AppError {
     fn from(err: tokio::task::JoinError) -> Self {
-            AppError::TaskJoinError(err)
+        AppError::TaskJoinError(err)
     }
 }

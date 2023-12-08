@@ -50,8 +50,8 @@ pub fn print_assistant_reply(reply: &str) -> Result<(), AppError> {
 pub fn print_user_prompt(tokens: Option<u32>) -> Result<(), AppError> {
     match tokens {
         Some(num_tokens) => print_colorful(&format!("[{}] User: ", num_tokens), Color::Yellow),
-        None => print_colorful("User: ", Color::Yellow)
-    } 
+        None => print_colorful("User: ", Color::Yellow),
+    }
 }
 
 // Utility function to pretty-print the tool's function call arguments and ask for user approval
