@@ -33,6 +33,7 @@ impl Tool for SnapTool {
 // Function to recursively create the snapshot
 async fn create_project_snapshot() -> Result<String, AppError> {
     let root_path = Path::new("src");
+    let proc_macro_path = Path::new("proc_macro_crate/src");
     let mut snapshot = String::new();
 
     // Include Cargo.toml at the root of the snapshot
@@ -40,8 +41,15 @@ async fn create_project_snapshot() -> Result<String, AppError> {
     snapshot.push_str(&read_file_contents("Cargo.toml").await?);
     snapshot.push_str("\n\n");
 
+    // Include Cargo.toml in proc_macro_crate
+    snapshot.push_str("File: proc_macro_crate/Cargo.toml\n");
+    snapshot.push_str(&read_file_contents("proc_macro_crate/Cargo.toml").await?);
+    snapshot.push_str("\n\n");
+
     // Start the recursion from the root_path, which is "src"
     read_directory_contents(&root_path, &mut snapshot).await?;
+
+    read_directory_contents(&proc_macro_path, &mut snapshot).await?;
 
     // Write snapshot to state.txt
     fs::write("state.txt", &snapshot)
