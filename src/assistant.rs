@@ -8,22 +8,21 @@ use crate::utils::{
 };
 
 use crossterm::style::Color;
+use lazy_static::lazy_static;
 use reqwest::Client;
 use serde_json::{json, Value as JsonValue};
 use std::io::{self};
-use lazy_static::lazy_static;
 
 // Generate imports and register_tools function
 auto_register_tools!();
 
 lazy_static! {
-    static ref GLOBAL_TOOL_REGISTRY: ToolRegistry = {
+    pub static ref GLOBAL_TOOL_REGISTRY: ToolRegistry = {
         let mut registry = ToolRegistry::new();
         register_tools(&mut registry); // Use the generated function
         registry
     };
 }
-
 
 pub struct Assistant {
     client: Client,
@@ -74,6 +73,9 @@ impl Assistant {
                 log::warn!("state.txt not found, continuing without state (run `cargo test` to generate it)");
             }
         }
+
+        system_message.push_str("\ntools JSON:\n");
+        system_message.push_str(&self.tool_registry.generate_tools_json().to_string());
 
         self.add_message(Message::new("system".to_string(), system_message));
         self.add_message(Message::new(
@@ -126,7 +128,8 @@ impl Assistant {
                             }
                             Err(e) => {
                                 log::warn!("Failed to execute tool call: {:?} => {}", tool_call, e);
-                                let error_str = format!("Error executing function `{}`: {}", function_name, e);
+                                let error_str =
+                                    format!("Error executing function `{}`: {}", function_name, e);
                                 self.add_message(Message {
                                     role: "tool".to_string(),
                                     content: Some(error_str),
@@ -164,14 +167,17 @@ impl Assistant {
                 self.tokens = response.usage.total_tokens;
                 self.add_message(response.choices[0].message.clone());
 
-
                 print_assistant_reply(response.choices[0].message.content.as_ref().unwrap())?;
             } else {
                 print_assistant_reply(response.choices[0].message.content.as_ref().unwrap())?;
             }
 
             // Handle user input
-            let tokens = if self.show_usage { Some(self.tokens) } else { None };
+            let tokens = if self.show_usage {
+                Some(self.tokens)
+            } else {
+                None
+            };
             print_user_prompt(tokens)?;
             let mut user_input = String::new();
             io::stdin().read_line(&mut user_input).unwrap();
