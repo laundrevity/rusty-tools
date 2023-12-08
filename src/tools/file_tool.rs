@@ -2,6 +2,7 @@ use crate::traits::Tool;
 use crate::types::AppError;
 
 use async_trait::async_trait;
+use schemars::schema::RootSchema;
 use schemars::{schema_for, JsonSchema};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
@@ -108,9 +109,8 @@ impl Tool for FileTool {
         Ok("File operations completed successfully.".to_string())
     }
 
-    fn input_schema(&self) -> String {
-        let schema = schema_for!(FileToolInput);
-        serde_json::to_string(&schema).unwrap()
+    fn input_schema(&self) -> RootSchema {
+        schema_for!(FileToolInput)
     }
 }
 
@@ -295,8 +295,7 @@ mod tests {
     #[test]
     fn test_file_input_schema() {
         let file_tool = FileTool;
-        let schema_str = file_tool.input_schema();
-        let _schema: schemars::schema::RootSchema = serde_json::from_str(&schema_str).unwrap();
+        let _schema = file_tool.input_schema();
         dbg!(_schema);
     }
 }

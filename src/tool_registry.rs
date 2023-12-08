@@ -40,7 +40,7 @@ impl ToolRegistry {
         let mut schemas_str = String::new();
         for tool in self.tools.values() {
             schemas_str.push_str(&format!("{} schena:\n", tool.name()));
-            schemas_str.push_str(&tool.input_schema());
+            schemas_str.push_str(&serde_json::to_string(&tool.input_schema()).unwrap());
             schemas_str.push_str("\n\n");
         }
 

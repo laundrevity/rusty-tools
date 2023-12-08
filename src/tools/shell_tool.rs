@@ -2,6 +2,7 @@ use crate::traits::Tool;
 use crate::types::AppError;
 
 use async_trait::async_trait;
+use schemars::schema::RootSchema;
 use schemars::{schema_for, JsonSchema};
 use serde::de::Error as DeError;
 use serde_derive::{Deserialize, Serialize};
@@ -50,9 +51,8 @@ impl Tool for ShellTool {
         execute_linux_commands(input.commands).await
     }
 
-    fn input_schema(&self) -> String {
-        let schema: schemars::schema::RootSchema = schema_for!(ShellToolInput);
-        serde_json::to_string(&schema).unwrap()
+    fn input_schema(&self) -> RootSchema {
+        schema_for!(ShellToolInput)
     }
 }
 
@@ -132,7 +132,6 @@ mod tests {
     #[test]
     fn test_shell_input_schema() {
         let shell_tool = ShellTool;
-        let schema_str = shell_tool.input_schema();
-        let _schema: schemars::schema::RootSchema = serde_json::from_str(&schema_str).unwrap();
+        let _schema = shell_tool.input_schema();
     }
 }

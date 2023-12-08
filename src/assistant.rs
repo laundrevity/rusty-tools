@@ -255,7 +255,7 @@ impl Assistant {
                 Ok(result) => {
                     let tool_call_str = format!("{:?}\n=>\n{}\n", tool_call, result);
                     log::info!("Succesfully executed tool call: {}", tool_call_str);
-                    print_colorful(&tool_call_str, Color::White)?;
+                    print_colorful(&tool_call_str, Color::DarkMagenta)?;
                     tool_result = result;
                 }
                 Err(e) => {

@@ -1,6 +1,7 @@
 use crate::{traits::Tool, types::AppError};
 use async_recursion::async_recursion;
 use async_trait::async_trait;
+use schemars::schema::RootSchema;
 use schemars::{schema_for, JsonSchema};
 use serde::de::Error as DeError;
 use serde_json::{json, Result as JsonResult, Value as JsonValue};
@@ -33,9 +34,8 @@ impl Tool for SnapTool {
         create_project_snapshot().await
     }
 
-    fn input_schema(&self) -> String {
-        let schema = schema_for!(SnapToolInput);
-        serde_json::to_string(&schema).unwrap()
+    fn input_schema(&self) -> RootSchema {
+        schema_for!(SnapToolInput)
     }
 }
 

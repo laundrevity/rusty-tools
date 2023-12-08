@@ -3,7 +3,7 @@ use crate::traits::Tool;
 use crate::types::AppError;
 
 use async_trait::async_trait;
-use schemars::{schema_for, JsonSchema};
+use schemars::{schema_for, JsonSchema, schema::RootSchema};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::{self, json, Value as JsonValue};
 #[derive(Serialize, Deserialize, Debug)]
@@ -106,9 +106,8 @@ impl Tool for PipelineTool {
         Ok(serde_json::to_string(&JsonValue::Object(context))?)
     }
 
-    fn input_schema(&self) -> String {
-        let schema = schema_for!(PipelineToolInput);
-        serde_json::to_string(&schema).unwrap()
+    fn input_schema(&self) -> RootSchema {
+        schema_for!(PipelineToolInput)
     }
 }
 
@@ -197,8 +196,7 @@ mod tests {
     #[test]
     fn test_pipeline_input_schema() {
         let pipeline_tool = PipelineTool;
-        let schema_str = pipeline_tool.input_schema();
-        let _schema: schemars::schema::RootSchema = serde_json::from_str(&schema_str).unwrap();
+        let _schema = pipeline_tool.input_schema();
         dbg!(_schema);
     }
 }
