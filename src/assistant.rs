@@ -168,6 +168,8 @@ impl Assistant {
 
         system_message.push_str("\ntools JSON:\n");
         system_message.push_str(&self.tool_registry.generate_tools_json().to_string());
+        system_message.push_str("\ntools JSON schemas:\n");
+        system_message.push_str(&self.tool_registry.generate_tools_schemas());
 
         self.add_message(Message::new("system".to_string(), system_message));
         self.add_message(Message::new(

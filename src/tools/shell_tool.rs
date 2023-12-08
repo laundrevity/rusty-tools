@@ -7,14 +7,20 @@ use serde_derive::{Deserialize, Serialize};
 use serde_json::{json, Result as JsonResult, Value as JsonValue};
 use std::io;
 use std::process::{Command, Output};
+use schemars::{JsonSchema, schema_for};
 
 // Import this in main file where needed
 pub struct ShellTool;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 struct ShellCommand {
     command: String,
     args: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+struct ShellToolInput {
+    commands: Vec<ShellCommand>,
 }
 
 #[async_trait]
@@ -40,14 +46,13 @@ impl Tool for ShellTool {
     }
 
     async fn execute(&self, args: JsonValue) -> Result<String, AppError> {
-        if let JsonValue::String(commands_json_string) = args["commands"].clone() {
-            let commands: Vec<ShellCommand> = serde_json::from_str(&commands_json_string)?;
-            execute_linux_commands(commands).await
-        } else {
-            Err(AppError::CommandError(
-                "commands argument to ShellTool must be a string".to_string(),
-            ))
-        }
+        let input: ShellToolInput = serde_json::from_value(args)?;
+        execute_linux_commands(input.commands).await
+    }
+
+    fn input_schema(&self) -> String {
+        let schema: schemars::schema::RootSchema = schema_for!(ShellToolInput);
+        serde_json::to_string(&schema).unwrap()
     }
 }
 
@@ -122,5 +127,12 @@ mod tests {
             assert!(matches!(err, AppError::SerdeJsonError(_)));
             assert!(err.to_string().contains("Command `nonexistent` not found"));
         }
+    }
+
+    #[test]
+    fn test_shell_input_schema() {
+        let shell_tool = ShellTool;
+        let schema_str = shell_tool.input_schema();
+        let _schema: schemars::schema::RootSchema = serde_json::from_str(&schema_str).unwrap();
     }
 }

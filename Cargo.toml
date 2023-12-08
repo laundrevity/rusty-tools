@@ -23,3 +23,4 @@ async-recursion = "1.0.5"
 proc_macro_crate = { path = "./proc_macro_crate" }
 lazy_static = "1.4.0"
 uuid = { version = "1.6.1", features = ["v4"] }
+schemars = "0.8.16"
