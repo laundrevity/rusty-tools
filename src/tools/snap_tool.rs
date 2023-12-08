@@ -1,4 +1,4 @@
-use crate::{traits::Tool, types::AppError};
+use crate::models::{traits::Tool, types::AppError};
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use schemars::schema::RootSchema;

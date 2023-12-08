@@ -1,13 +1,13 @@
+mod api;
 mod assistant;
-mod tool_registry;
+mod models;
+mod registry;
 mod tools;
-mod traits;
-mod types;
 mod utils;
 
-use crate::types::AppError;
+use crate::models::types::AppError;
 
-use assistant::Assistant;
+use crate::assistant::Assistant;
 use clap::{Arg, ArgMatches, Command};
 use reqwest::Client;
 use simplelog::*;
@@ -31,16 +31,11 @@ async fn main() -> Result<(), AppError> {
     let api_key = env::var("OPENAI_API_KEY")
         .map_err(|_| AppError::MissingEnvironmentVariable("OPENAI_API_KEY".to_string()))?;
 
-    let mut assistant = Assistant::new(
-        Client::new(),
-        api_key,
-        model,
-        initial_prompt,
-        matches.is_present("state"),
-        matches.is_present("usage"),
-    );
+    let mut assistant = Assistant::new(Client::new(), api_key, model.to_string());
 
-    assistant.run().await?;
+    assistant
+        .run(initial_prompt.to_string(), matches.is_present("state"))
+        .await?;
 
     Ok(())
 }
@@ -78,13 +73,6 @@ fn parse_command_line_arguments() -> Result<ArgMatches, AppError> {
                 .long("state")
                 .help("Appends the contents of state.txt to the initial system prompt")
                 .takes_value(false),
-        )
-        .arg(
-            Arg::new("usage")
-                .short('u')
-                .takes_value(false)
-                .long("usage")
-                .help("Prepends user prompts with the current token count"),
         )
         .get_matches();
 

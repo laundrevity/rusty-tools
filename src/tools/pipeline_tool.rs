@@ -1,9 +1,8 @@
 use crate::assistant::GLOBAL_TOOL_REGISTRY;
-use crate::traits::Tool;
-use crate::types::AppError;
+use crate::models::{traits::Tool, types::AppError};
 
 use async_trait::async_trait;
-use schemars::{schema_for, JsonSchema, schema::RootSchema};
+use schemars::{schema::RootSchema, schema_for, JsonSchema};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::{self, json, Value as JsonValue};
 #[derive(Serialize, Deserialize, Debug)]

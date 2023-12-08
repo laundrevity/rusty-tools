@@ -1,5 +1,5 @@
-use crate::traits::Tool;
-use crate::types::AppError;
+use crate::models::traits::Tool;
+use crate::models::types::AppError;
 use serde_json::{json, Value as JsonValue};
 use std::collections::HashMap;
 
