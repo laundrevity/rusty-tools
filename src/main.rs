@@ -21,6 +21,10 @@ async fn main() -> Result<(), AppError> {
 
     log::info!("Logger initialized");
 
+    // Create conversation archive
+    let convs_dir = "conversations";
+    std::fs::create_dir_all(convs_dir).map_err(AppError::IOError)?;
+
     // Retrieve the command-line arguments and API key from env
     let initial_prompt = matches.value_of("initial_prompt").unwrap();
     let model = matches.value_of("model").unwrap();

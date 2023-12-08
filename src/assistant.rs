@@ -1,3 +1,4 @@
+use clap::App;
 use proc_macro_crate::auto_register_tools;
 
 use crate::tool_registry::ToolRegistry;
@@ -11,7 +12,9 @@ use crossterm::style::Color;
 use lazy_static::lazy_static;
 use reqwest::Client;
 use serde_json::{json, Value as JsonValue};
-use std::io::{self};
+use std::fs::File;
+use std::io::{self, Write};
+use uuid::Uuid;
 
 // Generate imports and register_tools function
 auto_register_tools!();
@@ -24,6 +27,13 @@ lazy_static! {
     };
 }
 
+enum UserCommand {
+    Exit,
+    ListTools,
+    LoadConversation(String),
+    Other(String),
+}
+
 pub struct Assistant {
     client: Client,
     api_key: String,
@@ -34,6 +44,8 @@ pub struct Assistant {
     include_state: bool,
     show_usage: bool,
     tokens: u32,
+    conversation_id: String,
+    found_next_prompt: bool,
 }
 
 impl Assistant {
@@ -57,6 +69,84 @@ impl Assistant {
             include_state,
             show_usage,
             tokens: 0,
+            conversation_id: Uuid::new_v4().to_string(),
+            found_next_prompt: false,
+        }
+    }
+
+    async fn handle_command(&mut self, command: UserCommand) -> Result<(), AppError> {
+        match command {
+            UserCommand::Exit => {
+                self.exit();
+            },
+            UserCommand::ListTools => {
+                self.list_available_tools().await?;
+            },
+            UserCommand::LoadConversation(conv_id) => {
+                self.load_conversation(&conv_id).await?;
+            },
+            UserCommand::Other(input) => {
+                self.process_input(&input).await?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn list_available_tools(&self) -> Result<(), AppError> {
+        let tools_listing = self.tool_registry.list_tools();
+        print_colorful(&tools_listing, Color::Green)?;
+        Ok(())
+    }
+
+    async fn load_conversation(&mut self, conversation_id: &str) -> Result<(), AppError> {
+        let file_path = format!("conversations/{}.json", conversation_id);
+        let content = std::fs::read_to_string(file_path)?;
+        let new_messages: Vec<Message> = serde_json::from_str(&content)?;
+        print_colorful(&format!("Successfully loaded conversation {}\n", conversation_id), Color::DarkMagenta)?;
+
+        self.messages = new_messages;
+        self.conversation_id = conversation_id.to_string();
+
+        Ok(())
+    }
+
+    fn exit(&self) {
+        print_colorful("Received `exit` command, shutting down...", Color::Grey).unwrap();
+        std::process::exit(0);
+    }
+
+    async fn process_input(&mut self, input: &String) -> Result<(), AppError> {
+        self.add_message(Message::new("user".to_string(), input.to_string()));
+        self.found_next_prompt = true;
+        Ok(())
+    }
+
+    fn get_prompt_tokens_option(&self) -> Option<u32> {
+        if self.show_usage {
+            Some(self.tokens)
+        } else {
+            None
+        }
+    }
+
+    fn read_user_command(&self) -> Result<Option<UserCommand>, AppError> {
+        let mut user_input = String::new();
+        io::stdin().read_line(&mut user_input)?;
+        let user_input = user_input.trim();
+
+        if user_input.eq_ignore_ascii_case("exit") || user_input.eq_ignore_ascii_case("quit") {
+            Ok(Some(UserCommand::Exit))
+        } else if user_input.eq_ignore_ascii_case("list tools") {
+            Ok(Some(UserCommand::ListTools))
+        } else if user_input.to_lowercase().starts_with("load ") {
+            let parts: Vec<&str> = user_input.splitn(2, ' ').collect();
+            if parts.len() == 2 {
+                Ok(Some(UserCommand::LoadConversation(parts[1].to_string())))
+            } else {
+                Err(AppError::CommandError("Invalid load command".to_string()))
+            }
+        } else {
+            Ok(Some(UserCommand::Other(user_input.to_string())))
         }
     }
 
@@ -173,37 +263,55 @@ impl Assistant {
             }
 
             // Handle user input
-            let tokens = if self.show_usage {
-                Some(self.tokens)
-            } else {
-                None
-            };
-            print_user_prompt(tokens)?;
-            let mut user_input = String::new();
-            io::stdin().read_line(&mut user_input).unwrap();
-            let user_input = user_input.trim();
+            let tokens = self.get_prompt_tokens_option();
+            self.found_next_prompt = false;
 
-            if user_input.eq_ignore_ascii_case("exit") || user_input.eq_ignore_ascii_case("quit") {
-                break;
-            } else if user_input.eq_ignore_ascii_case("list tools") {
-                // If `list tools` then get some more input
-                let tools_listing = self.tool_registry.list_tools();
-                print_colorful(&tools_listing, Color::Green)?;
+            while !self.found_next_prompt {
                 print_user_prompt(tokens)?;
-                let mut user_input = String::new();
-                io::stdin().read_line(&mut user_input).unwrap();
-                let user_input = user_input.trim();
-                self.add_message(Message::new("user".to_string(), user_input.to_string()));
-            } else {
-                self.add_message(Message::new("user".to_string(), user_input.to_string()));
+                if let Some(command) = self.read_user_command()? {
+                    self.handle_command(command).await?;
+                } else {
+                    print_colorful("Failed to parse user command", Color::Red)?;
+                    log::error!("Failed to parse user command");
+                    break;
+                }
             }
-        }
 
-        Ok(())
+        }
     }
 
     fn add_message(&mut self, message: Message) {
         log::info!("[+] Message: {:?}", message);
         self.messages.push(message);
+
+        match serde_json::to_string(&self.messages) {
+            Ok(messages_str) => {
+                let conversation_file_path = format!("conversations/{}.json", self.conversation_id);
+                let mut file = File::create(&conversation_file_path).map_err(AppError::from).unwrap();
+                
+                file.write_all(messages_str.as_bytes()).unwrap();
+            
+            },
+            Err(_) => {
+                log::warn!("Failed to write conversation")
+            }
+        }
+
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_serde_messages() {
+        let mut messages = vec!(Message::new("system".to_string(), "You're a lumberjack and you're okay.".to_string()));
+        messages.push(Message::new("user".to_string(), "What do you seek?".to_string()));
+
+        let messages_str = serde_json::to_string(&messages).unwrap();
+        let decoded_messages: Vec<Message> = serde_json::from_str(&messages_str).unwrap();
+
+        assert_eq!(messages, decoded_messages);
     }
 }
