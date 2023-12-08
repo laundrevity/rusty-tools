@@ -1,7 +1,6 @@
+use proc_macro_crate::auto_register_tools;
+
 use crate::tool_registry::ToolRegistry;
-use crate::tools::file_tool::FileTool;
-use crate::tools::shell_tool::ShellTool;
-use crate::tools::snap_tool::SnapTool;
 use crate::types::{AppError, Message, OpenAIResponse};
 use crate::utils::{
     post_json, print_assistant_reply, print_colorful, print_user_prompt, read_file,
@@ -12,6 +11,19 @@ use crossterm::style::Color;
 use reqwest::Client;
 use serde_json::{json, Value as JsonValue};
 use std::io::{self};
+use lazy_static::lazy_static;
+
+// Generate imports and register_tools function
+auto_register_tools!();
+
+lazy_static! {
+    static ref GLOBAL_TOOL_REGISTRY: ToolRegistry = {
+        let mut registry = ToolRegistry::new();
+        register_tools(&mut registry); // Use the generated function
+        registry
+    };
+}
+
 
 pub struct Assistant {
     client: Client,
@@ -19,7 +31,7 @@ pub struct Assistant {
     model: String,
     messages: Vec<Message>,
     initial_prompt: String,
-    tool_registry: ToolRegistry,
+    tool_registry: &'static ToolRegistry,
     include_state: bool,
     show_usage: bool,
     tokens: u32,
@@ -34,12 +46,7 @@ impl Assistant {
         include_state: bool,
         show_usage: bool,
     ) -> Self {
-        let mut tool_registry = ToolRegistry::new();
-
-        // TODO: Use proc macro to generate this automatically based on contents of tools/
-        tool_registry.register(SnapTool);
-        tool_registry.register(ShellTool);
-        tool_registry.register(FileTool);
+        let tool_registry = &*GLOBAL_TOOL_REGISTRY;
 
         Assistant {
             client,

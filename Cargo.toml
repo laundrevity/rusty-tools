@@ -5,6 +5,8 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+
+
 [dependencies]
 async-trait = "0.1.74"
 clap = "3.0.0"
@@ -18,3 +20,5 @@ log = "0.4.17"
 simplelog = "0.11.0"
 chrono = "0.4.31"
 async-recursion = "1.0.5"
+proc_macro_crate = { path = "./proc_macro_crate" }
+lazy_static = "1.4.0"

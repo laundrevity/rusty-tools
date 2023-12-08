@@ -3,3 +3,4 @@
 Cargo.lock
 state.txt
 logs/
+proc_macro_crate/target/

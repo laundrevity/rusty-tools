@@ -4,7 +4,7 @@ use serde_json::{json, Value as JsonValue};
 use std::collections::HashMap;
 
 pub struct ToolRegistry {
-    tools: HashMap<String, Box<dyn Tool>>,
+    tools: HashMap<String, Box<dyn Tool + Sync + Send>>,
 }
 
 impl ToolRegistry {
