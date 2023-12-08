@@ -25,11 +25,11 @@ impl ConversationManager {
         }
     }
 
-    pub fn add_user_prompt(&mut self, prompt: String) {
-        self.add_message(Message::new("user".to_string(), prompt));
+    pub fn add_user_prompt(&mut self, prompt: String) -> Result<(), AppError> {
+        self.add_message(Message::new("user".to_string(), prompt))
     }
 
-    pub fn add_message(&mut self, message: Message) {
+    pub fn add_message(&mut self, message: Message) -> Result<(), AppError> {
         log::info!("[+] Message: {:?}", message);
         self.messages.push(message);
 
@@ -37,16 +37,16 @@ impl ConversationManager {
         match serde_json::to_string(&self.messages) {
             Ok(messages_str) => {
                 let conversation_file_path = format!("conversations/{}.json", self.conversation_id);
-                let mut file = File::create(&conversation_file_path)
-                    .map_err(AppError::from)
-                    .unwrap();
+                let mut file = File::create(&conversation_file_path).map_err(AppError::from)?;
 
-                file.write_all(messages_str.as_bytes()).unwrap();
+                file.write_all(messages_str.as_bytes())?;
             }
             Err(_) => {
                 log::warn!("Failed to write conversation")
             }
         }
+
+        Ok(())
     }
 
     pub fn initialize_conversation(
@@ -70,8 +70,8 @@ impl ConversationManager {
         system_message.push_str("\ntools JSON schemas:\n");
         system_message.push_str(&self.tools_schema);
 
-        self.add_message(Message::new("system".to_string(), system_message));
-        self.add_message(Message::new("user".to_string(), initial_prompt));
+        self.add_message(Message::new("system".to_string(), system_message))?;
+        self.add_message(Message::new("user".to_string(), initial_prompt))?;
 
         Ok(())
     }
