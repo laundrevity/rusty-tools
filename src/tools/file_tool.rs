@@ -2,11 +2,11 @@ use crate::traits::Tool;
 use crate::types::AppError;
 
 use async_trait::async_trait;
+use schemars::{schema_for, JsonSchema};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
 use tokio::fs::{self, File};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use schemars::{JsonSchema, schema_for};
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 struct FileOperation {
@@ -58,7 +58,7 @@ impl Tool for FileTool {
 
     async fn execute(&self, args: JsonValue) -> Result<String, AppError> {
         let input: FileToolInput = serde_json::from_value(args)?;
-        
+
         for operation in input.operations {
             match operation.op {
                 FileOpType::Create => {

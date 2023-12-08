@@ -219,7 +219,7 @@ impl Assistant {
             match &response.choices[0].message.content {
                 Some(content) => {
                     print_assistant_reply(&content)?;
-                },
+                }
                 None => {}
             }
 

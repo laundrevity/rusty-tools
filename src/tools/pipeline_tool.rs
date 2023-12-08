@@ -3,64 +3,22 @@ use crate::traits::Tool;
 use crate::types::AppError;
 
 use async_trait::async_trait;
+use schemars::{schema_for, JsonSchema};
 use serde_derive::{Deserialize, Serialize};
-use serde_json::{self, json, value::RawValue, Value as JsonValue};
-use schemars::{
-    gen::SchemaGenerator,
-    schema::{InstanceType, Schema, SchemaObject},
-    JsonSchema,
-    schema_for
-};
-use std::collections::BTreeSet;
-
+use serde_json::{self, json, Value as JsonValue};
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PipelineTool;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, JsonSchema)]
 struct PipelineStep {
     id: String,
     tool: String,
-    parameters: Box<RawValue>,
+    parameters: JsonValue,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema, Debug)]
 struct PipelineToolInput {
     steps: Vec<PipelineStep>,
-}
-
-impl JsonSchema for PipelineStep {
-    fn schema_name() -> String {
-        "PipelineStep".to_string()
-    }
-
-    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
-        let mut schema = SchemaObject::default();
-
-        schema.instance_type = Some(InstanceType::Object.into());
-        schema.object = Some(Box::new(schemars::schema::ObjectValidation {
-            properties: vec![
-                ("id".into(), gen.subschema_for::<String>()),
-                ("tool".into(), gen.subschema_for::<String>()),
-                ("parameters".into(), gen.subschema_for::<String>()),
-            ]
-            .into_iter()
-            .collect(),
-            required: {
-                let mut set = BTreeSet::new();
-                set.insert("id".to_string());
-                set.insert("tool".to_string());
-                set.insert("parameters".to_string());
-                set
-            },
-            ..Default::default()
-        }));
-
-        Schema::Object(schema)
-    }
-
-    fn is_referenceable() -> bool {
-        false
-    }
 }
 
 impl PipelineTool {
@@ -126,16 +84,17 @@ impl Tool for PipelineTool {
         let input: PipelineToolInput = serde_json::from_value(args)?;
 
         let mut context = serde_json::Map::new();
-        
+
         for step in input.steps {
-            let raw_params_json = step.parameters.get(); // Get JSON as a string
+            let params_json = step.parameters; // Get JSON as a string
 
             // Deserialize JSON string to JsonValue
-            let params_json = serde_json::from_str(raw_params_json)
-                .map_err(|_| AppError::CommandError("Invalid JSON parameters".into()))?;
+            // let params_json = serde_json::from_str(raw_params_json)
+            //     .map_err(|_| AppError::CommandError("Invalid JSON parameters".into()))?;
 
             // Substitute placeholders and resolve to a final JsonValue
-            let resolved_params = Self::resolve_parameters(&params_json, &JsonValue::Object(context.clone()));
+            let resolved_params =
+                Self::resolve_parameters(&params_json, &JsonValue::Object(context.clone()));
 
             let output = GLOBAL_TOOL_REGISTRY
                 .execute_tool(&step.tool, resolved_params)
@@ -145,7 +104,6 @@ impl Tool for PipelineTool {
         }
 
         Ok(serde_json::to_string(&JsonValue::Object(context))?)
-
     }
 
     fn input_schema(&self) -> String {
@@ -157,32 +115,22 @@ impl Tool for PipelineTool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::traits::Tool;
-    use serde_json::{json, Value as JsonValue, value::RawValue};
 
     #[tokio::test]
     async fn test_simple_pipeline() {
         let pipeline_tool = PipelineTool;
 
-        let step = PipelineStep { 
-            id: "echoResult".to_string(), 
-            tool: "shell_tool".to_string(), 
-            parameters: Box::new(
-                RawValue::from_string(
-                    json!({
-                        "commands": [
-                            {
-                                "command": "echo",
-                                "args": ["hello world"]
-                            }
-                        ]
-                    })
-                    .to_string()
-                ))
-            .unwrap()
+        let step = PipelineStep {
+            id: "echoResult".to_string(),
+            tool: "shell_tool".to_string(),
+            parameters: json!({
+                "commands": [{
+                "command": "echo",
+                "args": ["hello world"]}]
+            }),
         };
 
-        let input = PipelineToolInput { steps: vec!(step)};
+        let input = PipelineToolInput { steps: vec![step] };
 
         let json_input = serde_json::to_value(input).unwrap();
 
@@ -203,41 +151,32 @@ mod tests {
         let first_step = PipelineStep {
             id: "firstEcho".to_string(),
             tool: "shell_tool".to_string(),
-            parameters: Box::new(
-                RawValue::from_string(
-                    json!({
-                        "commands": [
-                            {
-                                "command": "echo",
-                                "args": ["hello"]
-                            }
-                        ]
-                    })
-                    .to_string()
-                ))
-            .unwrap()
+            parameters: json!({
+                "commands": [
+                    {
+                        "command": "echo",
+                        "args": ["hello"]
+                    }
+                ]
+            }),
         };
 
         let second_step = PipelineStep {
             id: "secondEcho".to_string(),
             tool: "shell_tool".to_string(),
-            parameters: Box::new(
-                RawValue::from_string(
-                    json!({
-                        "commands": [
-                            {
-                                "command": "echo",
-                                "args": ["${firstEcho} world"]
-                            }
-                        ]
-                    })
-                    .to_string()
-                ))
-            .unwrap()
+            parameters: json!({
+                "commands": [
+                    {
+                        "command": "echo",
+                        "args": ["${firstEcho} world"]
+                    }
+                ]
+            }),
         };
 
-        let input = PipelineToolInput { steps: vec!(first_step, second_step)};
-
+        let input = PipelineToolInput {
+            steps: vec![first_step, second_step],
+        };
 
         let json_input = serde_json::to_value(input).unwrap();
 
