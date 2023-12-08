@@ -56,7 +56,7 @@ impl Assistant {
             .await?;
         self.tokens = response.usage.total_tokens;
         self.conversation_manager
-            .add_message(response.choices[0].message.clone());
+            .add_message(response.choices[0].message.clone())?;
 
         Ok(response)
     }
@@ -100,7 +100,7 @@ impl Assistant {
             tool_calls: None,
             tool_call_id: Some(tool_call.id.clone()),
             name: Some(function_name.to_string()),
-        });
+        })?;
 
         Ok(())
     }

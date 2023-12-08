@@ -58,7 +58,7 @@ impl CommandHandler {
                     }
                     Command::Prompt(prompt) => {
                         got_prompt = true;
-                        conversation_manager.add_user_prompt(prompt);
+                        conversation_manager.add_user_prompt(prompt)?;
                     }
                 },
                 Err(e) => {
