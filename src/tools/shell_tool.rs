@@ -2,12 +2,12 @@ use crate::traits::Tool;
 use crate::types::AppError;
 
 use async_trait::async_trait;
+use schemars::{schema_for, JsonSchema};
 use serde::de::Error as DeError;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::{json, Result as JsonResult, Value as JsonValue};
 use std::io;
 use std::process::{Command, Output};
-use schemars::{JsonSchema, schema_for};
 
 // Import this in main file where needed
 pub struct ShellTool;

@@ -1,19 +1,16 @@
 use crate::{traits::Tool, types::AppError};
 use async_recursion::async_recursion;
 use async_trait::async_trait;
+use schemars::{schema_for, JsonSchema};
 use serde::de::Error as DeError;
 use serde_json::{json, Result as JsonResult, Value as JsonValue};
 use std::fs;
 use std::path::Path;
-use schemars::{JsonSchema, schema_for};
 
 pub struct SnapTool;
 
 #[derive(JsonSchema)]
-struct SnapToolInput {
-
-}
-
+struct SnapToolInput {}
 
 #[async_trait]
 impl Tool for SnapTool {
