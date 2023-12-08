@@ -21,6 +21,8 @@ pub struct Assistant {
     initial_prompt: String,
     tool_registry: ToolRegistry,
     include_state: bool,
+    show_usage: bool,
+    tokens: u32,
 }
 
 impl Assistant {
@@ -30,6 +32,7 @@ impl Assistant {
         model: &str,
         initial_prompt: &str,
         include_state: bool,
+        show_usage: bool,
     ) -> Self {
         let mut tool_registry = ToolRegistry::new();
 
@@ -46,6 +49,8 @@ impl Assistant {
             initial_prompt: initial_prompt.to_string(),
             tool_registry,
             include_state,
+            show_usage,
+            tokens: 0,
         }
     }
 
@@ -79,7 +84,7 @@ impl Assistant {
 
             let response: OpenAIResponse =
                 post_json(&self.client, url, &self.api_key, &payload).await?;
-
+            self.tokens = response.usage.total_tokens;
             self.add_message(response.choices[0].message.clone());
 
             if let Some(tool_calls) = &response.choices[0].message.tool_calls {
@@ -114,7 +119,14 @@ impl Assistant {
                             }
                             Err(e) => {
                                 log::warn!("Failed to execute tool call: {:?} => {}", tool_call, e);
-                                println!("Error executing function `{}`: {}", function_name, e);
+                                let error_str = format!("Error executing function `{}`: {}", function_name, e);
+                                self.add_message(Message {
+                                    role: "tool".to_string(),
+                                    content: Some(error_str),
+                                    tool_calls: None,
+                                    tool_call_id: Some(tool_call.id.clone()),
+                                    name: Some(function_name.to_string()),
+                                })
                             }
                         }
                     } else {
@@ -142,6 +154,9 @@ impl Assistant {
                 });
                 let response: OpenAIResponse =
                     post_json(&self.client, url, &self.api_key, &payload).await?;
+                self.tokens = response.usage.total_tokens;
+                self.add_message(response.choices[0].message.clone());
+
 
                 print_assistant_reply(response.choices[0].message.content.as_ref().unwrap())?;
             } else {
@@ -149,7 +164,8 @@ impl Assistant {
             }
 
             // Handle user input
-            print_user_prompt()?;
+            let tokens = if self.show_usage { Some(self.tokens) } else { None };
+            print_user_prompt(tokens)?;
             let mut user_input = String::new();
             io::stdin().read_line(&mut user_input).unwrap();
             let user_input = user_input.trim();
@@ -160,7 +176,7 @@ impl Assistant {
                 // If `list tools` then get some more input
                 let tools_listing = self.tool_registry.list_tools();
                 print_colorful(&tools_listing, Color::Green)?;
-                print_user_prompt()?;
+                print_user_prompt(tokens)?;
                 let mut user_input = String::new();
                 io::stdin().read_line(&mut user_input).unwrap();
                 let user_input = user_input.trim();

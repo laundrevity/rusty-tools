@@ -36,10 +36,10 @@ pub struct Choice {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-struct Usage {
+pub struct Usage {
     prompt_tokens: u32,
     completion_tokens: u32,
-    total_tokens: u32,
+    pub total_tokens: u32,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -47,7 +47,7 @@ pub struct OpenAIResponse {
     id: String,
     model: String,
     pub choices: Vec<Choice>,
-    usage: Usage,
+    pub usage: Usage,
 }
 
 impl Message {
@@ -67,6 +67,7 @@ pub enum AppError {
     ReqwestError(reqwest::Error),
     IOError(std::io::Error),
     SerdeJsonError(serde_json::Error),
+    TaskJoinError(tokio::task::JoinError),
     MissingEnvironmentVariable(String),
     CommandError(String),
 }
@@ -77,6 +78,7 @@ impl fmt::Display for AppError {
             AppError::ReqwestError(e) => write!(f, "HTTP request failed: {}", e),
             AppError::IOError(e) => write!(f, "IO error: {}", e),
             AppError::SerdeJsonError(e) => write!(f, "Serialization/Deserialization error: {}", e),
+            AppError::TaskJoinError(e) => write!(f, "TaskJoinError: {}", e),
             AppError::MissingEnvironmentVariable(e) => {
                 write!(f, "Missing environment variable: {}", e)
             }
@@ -104,5 +106,11 @@ impl From<std::io::Error> for AppError {
 impl From<serde_json::Error> for AppError {
     fn from(err: serde_json::Error) -> Self {
         AppError::SerdeJsonError(err)
+    }
+}
+
+impl From<tokio::task::JoinError> for AppError {
+    fn from(err: tokio::task::JoinError) -> Self {
+            AppError::TaskJoinError(err)
     }
 }

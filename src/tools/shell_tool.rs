@@ -61,8 +61,7 @@ async fn execute_linux_commands(commands: Vec<ShellCommand>) -> Result<String, A
 
         // Use tokio's spawn_blocking to run the command in a blocking fashion off of the async runtime
         let output = tokio::task::spawn_blocking(move || command.output())
-            .await
-            .unwrap();
+            .await?;
 
         // Check and handle command execution results
         results.push(handle_command_output(output, &linux_command.command)?);
@@ -85,8 +84,14 @@ fn handle_command_output(output: io::Result<Output>, command: &str) -> JsonResul
                 command, stderr
             )))
         }
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            Err(serde_json::Error::custom(format!(
+                "Command `{}` not found. Please ensure the command exists and is in the PATH.",
+                command
+            )))
+        }
         Err(e) => Err(serde_json::Error::custom(format!(
-            "Failed to execute command `{}`: {}",
+            "Failed to execute command `{}` due to error: {}",
             command, e
         ))),
     }
@@ -105,5 +110,19 @@ mod tests {
         let result = execute_linux_commands(commands).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "Hello, world!");
+    }
+
+    #[tokio::test]
+    async fn test_command_not_found() {
+        let commands = vec![ShellCommand{
+            command: "nonexistent".to_string(),
+            args: Some(vec!["arg1".to_string(), "arg2".to_string()]),
+        }];
+        let result = execute_linux_commands(commands).await;
+        assert!(result.is_err());
+        if let Err(err) = result {
+            assert!(matches!(err, AppError::SerdeJsonError(_)));
+            assert!(err.to_string().contains("Command `nonexistent` not found"));
+        }
     }
 }

@@ -33,6 +33,7 @@ async fn main() -> Result<(), AppError> {
         model,
         initial_prompt,
         matches.is_present("state"),
+        matches.is_present("usage")
     );
 
     assistant.run().await?;
@@ -73,6 +74,13 @@ fn parse_command_line_arguments() -> Result<ArgMatches, AppError> {
                 .long("state")
                 .help("Appends the contents of state.txt to the initial system prompt")
                 .takes_value(false),
+        )
+        .arg(
+            Arg::new("usage")
+                .short('u')
+                .takes_value(false)
+                .long("usage")
+                .help("Prepends user prompts with the current token count")
         )
         .get_matches();
 
