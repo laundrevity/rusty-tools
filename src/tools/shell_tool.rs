@@ -38,8 +38,26 @@ impl Tool for ShellTool {
             "type": "object",
             "properties": {
                 "commands": {
-                    "type": "string",
-                    "description": "The JSON-encoded list of Linux commands to execute. Each command must have a key `command` with a String value, and an optional key `args` with an array of Strings for value. So, for example, we would represent `ls -ltrah` with {'command': 'ls', 'args': ['-ltrah']} (in proper JSON of course)"
+                    "type": "array",
+                    "description": "The JSON-encoded list of Linux commands to execute",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "command": {
+                                "type": "string",
+                                "description": "command to execute",
+                            },
+                            "args": {
+                                "type": "array",
+                                "description": "The (optional) arguments to provide to the command",
+                                "items": {
+                                    "type": "string",
+                                    "description": "argument for command"
+                                }
+                            },
+                        },
+                        "required": ["command"]
+                    }
                 }
             }
         })

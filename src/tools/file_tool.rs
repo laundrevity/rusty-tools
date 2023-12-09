@@ -49,8 +49,31 @@ impl Tool for FileTool {
             "type": "object",
             "properties": {
                 "operations": {
-                    "type": "string",
-                    "description": "The JSON-encoded list of file operations to execute. Each operation must have a key `op` with a String value in (create, delete, insertline, deleteline, updateline) and a key `file_path` with a String value. The operation can also have optional `content` key with a String value (for Create, InsertLine, and UpdateLine, corresponding to new file contents), and an optional `line` key (for line-specific operations)."
+                    "type": "array",
+                    "description": "The JSON-encoded list of file operations to execute",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "op": {
+                                "type": "string",
+                                "enum": ["create", "delete", "insertline", "deleteline", "updateline"],
+                                "description": "type of file operation"
+                            },
+                            "file_path": {
+                                "type": "string",
+                                "description": "path of file to operate upon"
+                            },
+                            "content": {
+                                "type": "string",
+                                "description": "new file contents"
+                            },
+                            "line": {
+                                "type": "integer",
+                                "description": "line number for insertline, updateline, and deleteline operations"
+                            }
+                        },
+                        "required": ["op", "file_path"]
+                    }
                 }
             }
         })

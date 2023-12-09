@@ -73,8 +73,25 @@ impl Tool for PipelineTool {
             "type": "object",
             "properties": {
                 "steps": {
-                    "type": "string",
-                    "description": "The list of pipeline steps to execute, with possible substitutions. This value MUST be JSON, NOT a string. Each pipeline step must have a string with key `id`, a string with key `tool`, and a JSON value with key `parameters`. The `id` value can be subsequently referenced by other pipeline steps to use the result of a prior step as input. The `tool` value must be one of the known tools (e.g. shell_tool, snap_tool, etc). The `parameters` value should be JSON of arguments to pass to the tool -- NOT a stringified JSON, but just JSON. Do NOT prepend the tool names with `functions.` - the passed tool names should just be like `shell_tool`, `snap_tool`, etc. You can use `${stepId}` to access the value in a later step from the step with id `stepId`."
+                    "type": "array",
+                    "description": "The list of pipeline steps to execute, with possible substitutions",
+                    "items": {
+                        "type": "object", 
+                        "properties": {
+                            "id": {
+                                "type": "string",
+                                "description": "the id of the pipeline step. can be subsequently referenced in pipeline with ${thisId} for result substitution",
+                            },
+                            "tool": {
+                                "type": "string",
+                                "description": "name of tool (in snake case) to call"
+                            },
+                            "parameters": {
+                                "type": "string",
+                                "description": "JSON arguments to pass to tool"
+                            }
+                        }
+                    }
                 }
             }
         })
